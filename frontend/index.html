@@ -2,10 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ZeroBreakout — Catch every breakout.</title>
-  <link rel="icon" type="image/png" href="/static/favicon.png?v=3.1.0">
-  <link rel="stylesheet" href="/static/css/style.css?v=3.1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ZeroBreakout — Momentum Breakout Scanner</title>
+  
+  <!-- PWA Web App Manifest -->
+  <link rel="manifest" href="/manifest.json?v=3.8.0">
+  <meta name="theme-color" content="#0B0E14" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ZeroBreakout">
+  <meta name="application-name" content="ZeroBreakout">
+  <meta name="msapplication-TileColor" content="#0B0E14">
+  <meta name="description" content="Technical Structure & Breakout Pattern Scanner for Indian NSE Stocks">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=3.8.0">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/assets/icon-192.png?v=3.8.0">
+  <link rel="apple-touch-icon" sizes="192x192" href="/static/assets/icon-192.png?v=3.8.0">
+  <link rel="apple-touch-icon" sizes="512x512" href="/static/assets/icon-512.png?v=3.8.0">
+  <link rel="shortcut icon" href="/static/favicon.png?v=3.8.0">
+
+  <!-- Styles & Fonts -->
+  <link rel="stylesheet" href="/static/css/style.css?v=3.8.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -297,8 +317,15 @@
           </div>
         </div>
 
-        <!-- 4. THEME TOGGLE -->
+        <!-- 4. APP INSTALL & THEME SETTINGS -->
         <div class="settings-group">
+          <div class="settings-item" id="pwaInstallItem">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 16px;">📲</span>
+              <span style="font-weight: 600;">Install ZeroBreakout App</span>
+            </div>
+            <span class="badge-eod-sync" style="background: rgba(56, 126, 209, 0.1); color: var(--accent-blue); font-weight: 700;">Install →</span>
+          </div>
           <div class="settings-item" id="themeToggle">
             <div style="display: flex; align-items: center; gap: 10px;">
               <span style="font-size: 16px;">🌓</span>
@@ -481,8 +508,27 @@
   </script>
 
   <!-- Scripts with Cache Busting -->
-  <script src="/static/js/api.js?v=3.7.0"></script>
-  <script src="/static/js/chart.js?v=3.7.0"></script>
-  <script src="/static/js/app.js?v=3.7.0"></script>
+  <script src="/static/js/api.js?v=3.8.0"></script>
+  <script src="/static/js/chart.js?v=3.8.0"></script>
+  <script src="/static/js/app.js?v=3.8.0"></script>
+
+  <!-- PWA Service Worker & Install Controller -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => console.log('✓ ZeroBreakout PWA active:', reg.scope))
+          .catch((err) => console.warn('PWA SW registration notice:', err));
+      });
+    }
+
+    // Capture install event for native App install flow
+    window.deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      window.deferredPrompt = e;
+      console.log('✓ ZeroBreakout native App installation ready!');
+    });
+  </script>
 </body>
 </html>
