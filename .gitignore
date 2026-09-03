@@ -1,0 +1,34 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# SQLite Databases (Excluded to prevent GitHub 100MB file limit error)
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Environment Variables & Secrets
+.env
+.env.local
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Scratch files
+scratch/
