@@ -180,15 +180,61 @@ def fetch_and_populate_real_data():
     return scan_results
 
 def seed_database_if_empty():
-    """Ensures database is initialized with REAL data only"""
-    from .database import init_db, get_all_active_symbols
+    """Ensures database is initialized with full 1,110 institutional stocks and signals"""
+    from .database import init_db, get_all_active_symbols, get_connection
     init_db()
     existing = get_all_active_symbols()
-    if len(existing) == 0:
-        logger.info("No active stocks found in database. Initiating Real Live Data Fetch...")
+    
+    conn = get_connection()
+    signal_count = 0
+    try:
+        signal_count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    except Exception:
+        pass
+    conn.close()
+
+    if len(existing) < 500 or signal_count < 50:
+        logger.info(f"Database currently holds {len(existing)} stocks and {signal_count} signals. Loading full universe seed data...")
+        seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed_data", "universe_seed.json")
+        if os.path.exists(seed_path):
+            try:
+                import json
+                with open(seed_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                stocks = data.get("stocks", [])
+                signals = data.get("signals", [])
+                
+                conn = get_connection()
+                with conn:
+                    for s in stocks:
+                        conn.execute("""
+                            INSERT OR REPLACE INTO stocks (symbol, company_name, sector, market_cap_cr, all_time_high, ath_date, listing_date, is_active, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            s.get("symbol"), s.get("company_name"), s.get("sector"), s.get("market_cap_cr", 2000.0),
+                            s.get("all_time_high", 0.0), s.get("ath_date"), s.get("listing_date"),
+                            s.get("is_active", 1), s.get("updated_at")
+                        ))
+                    for sig in signals:
+                        conn.execute("""
+                            INSERT OR REPLACE INTO signals (symbol, pattern_type, trigger_date, pivot_price, current_price, percent_vs_pivot, metadata_json, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            sig.get("symbol"), sig.get("pattern_type"), sig.get("trigger_date"),
+                            sig.get("pivot_price", 0.0), sig.get("current_price", 0.0),
+                            sig.get("percent_vs_pivot", 0.0), sig.get("metadata_json", "{}"),
+                            sig.get("created_at")
+                        ))
+                conn.close()
+                logger.info(f"✓ Successfully seeded {len(stocks)} institutional stocks and {len(signals)} breakout signals from JSON bundle!")
+                return
+            except Exception as e:
+                logger.error(f"Error seeding from universe_seed.json: {e}")
+        
+        # Fallback to yfinance if seed file not present
         fetch_and_populate_real_data()
     else:
-        logger.info(f"Database currently holds {len(existing)} active real stocks.")
+        logger.info(f"Database currently holds {len(existing)} active real stocks and {signal_count} signals.")
 
 if __name__ == "__main__":
     fetch_and_populate_real_data()

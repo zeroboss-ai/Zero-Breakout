@@ -311,6 +311,22 @@ async def trigger_live_data_sync(background_tasks: BackgroundTasks):
     background_tasks.add_task(sync_live_universe)
     return {"message": "Real Live NSE Data Sync started in background. Refresh in a few seconds."}
 
+@app.get("/api/admin/init-seed")
+@app.post("/api/admin/init-seed")
+async def trigger_init_seed():
+    """
+    Forces instant universe seeding (1,110 stocks + 480 breakout signals).
+    """
+    from .seed_data import seed_database_if_empty
+    seed_database_if_empty()
+    stocks = get_all_active_symbols()
+    signals = get_latest_signals(limit=500)
+    return {
+        "status": "success",
+        "total_stocks_tracked": len(stocks),
+        "total_active_signals": len(signals)
+    }
+
 @app.get("/api/stats")
 async def get_scanner_stats():
     """
