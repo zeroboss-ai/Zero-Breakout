@@ -32,6 +32,7 @@ logger = logging.getLogger("ZeroBreakout.App")
 async def lifespan(app: FastAPI):
     # Startup: initialize database and seed if empty
     logger.info("Initializing ZeroBreakout database and services...")
+    init_db()
     seed_database_if_empty()
     # Start background scheduler for daily post-market scans
     start_scheduler()

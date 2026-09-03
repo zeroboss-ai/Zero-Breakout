@@ -181,7 +181,8 @@ def fetch_and_populate_real_data():
 
 def seed_database_if_empty():
     """Ensures database is initialized with REAL data only"""
-    from .database import get_all_active_symbols
+    from .database import init_db, get_all_active_symbols
+    init_db()
     existing = get_all_active_symbols()
     if len(existing) == 0:
         logger.info("No active stocks found in database. Initiating Real Live Data Fetch...")
