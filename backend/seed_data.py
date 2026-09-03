@@ -184,8 +184,17 @@ def seed_database_if_empty():
     from .database import init_db, get_all_active_symbols, get_connection
     init_db()
     existing = get_all_active_symbols()
-    if len(existing) == 0:
-        logger.info("No active stocks found in database. Loading universe seed data...")
+    
+    conn = get_connection()
+    signal_count = 0
+    try:
+        signal_count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+    except Exception:
+        pass
+    conn.close()
+
+    if len(existing) < 500 or signal_count < 50:
+        logger.info(f"Database currently holds {len(existing)} stocks and {signal_count} signals. Loading full universe seed data...")
         seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed_data", "universe_seed.json")
         if os.path.exists(seed_path):
             try:
@@ -225,7 +234,7 @@ def seed_database_if_empty():
         # Fallback to yfinance if seed file not present
         fetch_and_populate_real_data()
     else:
-        logger.info(f"Database currently holds {len(existing)} active real stocks.")
+        logger.info(f"Database currently holds {len(existing)} active real stocks and {signal_count} signals.")
 
 if __name__ == "__main__":
     fetch_and_populate_real_data()
