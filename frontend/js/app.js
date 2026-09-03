@@ -577,14 +577,26 @@ function initApp() {
     });
   }
 
-  // Load saved theme
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'dark') {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    if (themeToggle) {
-      const tv = themeToggle.querySelector('.theme-val');
-      if (tv) tv.textContent = 'Dark';
-    }
+  // Native PWA App Install Action
+  const pwaInstallItem = document.getElementById('pwaInstallItem');
+  if (pwaInstallItem) {
+    pwaInstallItem.addEventListener('click', async () => {
+      if (window.deferredPrompt) {
+        window.deferredPrompt.prompt();
+        const choice = await window.deferredPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          showToast('✓ Installing ZeroBreakout App...');
+          window.deferredPrompt = null;
+        }
+      } else {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+          showToast('iPhone Install: Tap Share ⎋ -> "Add to Home Screen"');
+        } else {
+          showToast('To Install App: Tap Chrome Menu (⋮) -> "Install app"');
+        }
+      }
+    });
   }
 
   // Header Live Data Sync
