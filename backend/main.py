@@ -362,10 +362,33 @@ async def get_scanner_stats():
         "pattern_distribution": pattern_counts
     }
 
-# ----------------- FRONTEND STATIC SERVING ----------------- #
+# ----------------- FRONTEND STATIC SERVING & PWA ROUTES ----------------- #
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+    @app.get("/manifest.json")
+    async def serve_manifest():
+        return FileResponse(
+            os.path.join(FRONTEND_DIR, "manifest.json"),
+            media_type="application/manifest+json"
+        )
+
+    @app.get("/sw.js")
+    async def serve_sw():
+        return FileResponse(
+            os.path.join(FRONTEND_DIR, "sw.js"),
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/"}
+        )
+
+    @app.get("/icon-192.png")
+    async def serve_icon_192():
+        return FileResponse(os.path.join(FRONTEND_DIR, "assets", "icon-192.png"), media_type="image/png")
+
+    @app.get("/icon-512.png")
+    async def serve_icon_512():
+        return FileResponse(os.path.join(FRONTEND_DIR, "assets", "icon-512.png"), media_type="image/png")
 
     @app.get("/")
     async def serve_index():
