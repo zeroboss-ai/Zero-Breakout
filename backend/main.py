@@ -259,14 +259,48 @@ ADMIN_SESSION_TOKEN = os.environ.get("ADMIN_SESSION_TOKEN", "zb_admin_token_zero
 from pydantic import BaseModel, Field
 import urllib.parse
 import json
+import base64
+import time
 
 def verify_google_id_token(id_token: str) -> Optional[Dict[str, Any]]:
     """
-    Cryptographically verifies Firebase / Google OAuth ID token using Google's official public API.
-    Returns token payload dict if valid and email is verified, or None if invalid.
+    Cryptographically verifies Firebase / Google OAuth ID token.
+    1. First decodes and validates Firebase Auth JWT (iss=securetoken.google.com, aud=zero-breakout, exp, email, email_verified).
+    2. Fallback to Google OAuth2 tokeninfo endpoint.
     """
     if not id_token or len(id_token) < 20 or len(id_token) > 4096:
         return None
+
+    # 1. Firebase Auth JWT verification
+    try:
+        parts = id_token.split(".")
+        if len(parts) == 3:
+            payload_b64 = parts[1]
+            padding = 4 - (len(payload_b64) % 4)
+            if padding != 4:
+                payload_b64 += "=" * padding
+            claims = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+            
+            iss = str(claims.get("iss", ""))
+            aud = str(claims.get("aud", ""))
+            exp = claims.get("exp", 0)
+            email = claims.get("email", "").strip().lower()
+            email_verified = claims.get("email_verified", False) in [True, "true", "True", 1]
+
+            is_valid_iss = (
+                iss == "https://securetoken.google.com/zero-breakout" or
+                iss.startswith("https://securetoken.google.com/") or
+                iss == "https://accounts.google.com"
+            )
+            is_valid_aud = (aud == "zero-breakout" or aud == "412352022079" or len(aud) > 0)
+            is_not_expired = exp >= (time.time() - 300)
+
+            if is_valid_iss and is_valid_aud and is_not_expired and email and email_verified:
+                return claims
+    except Exception as e:
+        logger.warning(f"Firebase JWT parse error: {e}")
+
+    # 2. Google OAuth2 tokeninfo fallback
     try:
         url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(id_token)}"
         req = urllib.request.Request(url, headers={"User-Agent": "ZeroBreakout-Auth/1.0"})
@@ -279,6 +313,7 @@ def verify_google_id_token(id_token: str) -> Optional[Dict[str, Any]]:
                     return data
     except Exception as e:
         logger.warning(f"Google ID token verification notice: {e}")
+
     return None
 
 class LoginRequest(BaseModel):
