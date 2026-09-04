@@ -17,11 +17,13 @@ from .database import (
     get_watchlist,
     toggle_watchlist,
     is_in_watchlist,
-    get_all_active_symbols
+    get_all_active_symbols,
+    get_connection
 )
 from .seed_data import seed_database_if_empty
 from .scheduler import start_scheduler, stop_scheduler, run_daily_eod_pipeline
 from .gemini_service import get_gemini_analysis
+import threading
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +39,27 @@ async def lifespan(app: FastAPI):
     seed_database_if_empty()
     # Start background scheduler for daily post-market scans
     start_scheduler()
+
+    # Background verification: Auto-fetch today's Bhavcopy if market is closed (>16:15 IST) and today's data is missing
+    def auto_sync_on_startup():
+        try:
+            from datetime import timezone, timedelta
+            ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+            if ist_now.weekday() < 5 and (ist_now.hour > 16 or (ist_now.hour == 16 and ist_now.minute >= 15)):
+                today_str = ist_now.strftime("%Y-%m-%d")
+                conn = get_connection()
+                count = conn.execute("SELECT COUNT(DISTINCT symbol) as cnt FROM price_history WHERE date = ?", (today_str,)).fetchone()["cnt"]
+                conn.close()
+                if count < 500:
+                    logger.info(f"Startup check: Today's Bhavcopy ({today_str}) not yet loaded. Ingesting today's market close and scanning patterns in background...")
+                    run_daily_eod_pipeline()
+                else:
+                    logger.info(f"Startup check: Today's Bhavcopy ({today_str}) already loaded for {count} stocks.")
+        except Exception as err:
+            logger.error(f"Startup auto_sync error: {err}")
+
+    threading.Thread(target=auto_sync_on_startup, daemon=True).start()
+
     yield
     # Shutdown: stop scheduler cleanly
     stop_scheduler()

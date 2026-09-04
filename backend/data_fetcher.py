@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 from typing import List, Dict, Any, Optional
-from .database import upsert_price_batch, upsert_stock, update_stock_ath_from_history
+from .database import upsert_price_batch, upsert_stock, update_stock_ath_from_history, get_connection
 
 logger = logging.getLogger("ZeroBreakout.DataFetcher")
 
@@ -65,37 +65,51 @@ def process_and_save_bhavcopy(df: pd.DataFrame, target_date_str: str) -> int:
     if df is None or df.empty:
         return 0
 
-    # Handle various column namings in NSE files (All UPPERCASE)
+    # Ensure clean column names (strip whitespace and uppercase)
+    df = df.copy()
+    df.columns = [str(c).strip().upper() for c in df.columns]
+
+    # Handle standard NSE column names
     col_map = {
-        "SYMBOL": "symbol",
         "TCKRSYMB": "symbol",
+        "SYMBOL": "symbol",
         "SECURITY": "symbol",
-        "OPEN": "open",
-        "OPEN_PRICE": "open",
         "OPNPRIC": "open",
-        "HIGH": "high",
-        "HIGH_PRICE": "high",
+        "OPEN_PRICE": "open",
+        "OPEN": "open",
         "HGHPRIC": "high",
-        "LOW": "low",
-        "LOW_PRICE": "low",
+        "HIGH_PRICE": "high",
+        "HIGH": "high",
         "LWPRIC": "low",
-        "CLOSE": "close",
-        "CLOSE_PRICE": "close",
+        "LOW_PRICE": "low",
+        "LOW": "low",
         "CLSPRIC": "close",
-        "LAST_PRICE": "close",
-        "LASTPRIC": "close",
+        "CLOSE_PRICE": "close",
+        "CLOSE": "close",
+        "TTLTRADGVOL": "volume",
         "TOTTRDQTY": "volume",
         "TOTAL_TRADED_QTY": "volume",
-        "TTLTRADGVOL": "volume",
-        "SERIES": "series",
-        "SCTYSRS": "series"
+        "SCTYSRS": "series",
+        "SERIES": "series"
     }
 
-    df_clean = df.rename(columns=col_map)
-    
-    # Filter for Equity Series (EQ / BE)
+    # Map only columns that exist
+    rename_dict = {}
+    used_targets = set()
+    for col in df.columns:
+        if col in col_map:
+            target = col_map[col]
+            if target not in used_targets:
+                rename_dict[col] = target
+                used_targets.add(target)
+
+    df_clean = df.rename(columns=rename_dict)
+    # Deduplicate columns if any duplicate slipped through
+    df_clean = df_clean.loc[:, ~df_clean.columns.duplicated()]
+
+    # Filter for Equity Series (EQ / BE / SM / ST)
     if "series" in df_clean.columns:
-        df_clean = df_clean[df_clean["series"].astype(str).str.strip().isin(["EQ", "BE"])]
+        df_clean = df_clean[df_clean["series"].astype(str).str.strip().isin(["EQ", "BE", "SM", "ST"])]
 
     required_cols = ["symbol", "open", "high", "low", "close", "volume"]
     missing = [c for c in required_cols if c not in df_clean.columns]
@@ -107,6 +121,8 @@ def process_and_save_bhavcopy(df: pd.DataFrame, target_date_str: str) -> int:
     for _, row in df_clean.iterrows():
         try:
             sym = str(row["symbol"]).strip().upper()
+            if not sym or sym == "NAN":
+                continue
             o = float(row["open"])
             h = float(row["high"])
             l = float(row["low"])
@@ -117,13 +133,33 @@ def process_and_save_bhavcopy(df: pd.DataFrame, target_date_str: str) -> int:
             continue
 
     if price_rows:
-        # Upsert stock metadata first to satisfy foreign key constraints
-        for sym, _, _, h, _, _, _ in price_rows:
-            upsert_stock(sym, sym, "General", 0, h, target_date_str)
+        conn = get_connection()
+        now_str = datetime.now().isoformat()
+        with conn:
+            # 1. Fast Batch Upsert stocks to satisfy foreign keys & update ATH
+            stock_tuples = [(sym, sym, "General", 0, h, target_date_str, now_str) for sym, _, _, h, _, _, _ in price_rows]
+            conn.executemany("""
+                INSERT INTO stocks (symbol, company_name, sector, market_cap_cr, all_time_high, ath_date, is_active, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                ON CONFLICT(symbol) DO UPDATE SET
+                    all_time_high=CASE WHEN excluded.all_time_high > stocks.all_time_high THEN excluded.all_time_high ELSE stocks.all_time_high END,
+                    ath_date=CASE WHEN excluded.all_time_high > stocks.all_time_high THEN excluded.ath_date ELSE stocks.ath_date END,
+                    updated_at=excluded.updated_at;
+            """, stock_tuples)
 
-        # Batch insert price records
-        upsert_price_batch(price_rows)
-        logger.info(f"Saved {len(price_rows)} price records for {target_date_str}")
+            # 2. Fast Batch Upsert price records
+            conn.executemany("""
+                INSERT INTO price_history (symbol, date, open, high, low, close, volume)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(symbol, date) DO UPDATE SET
+                    open=excluded.open,
+                    high=excluded.high,
+                    low=excluded.low,
+                    close=excluded.close,
+                    volume=excluded.volume;
+            """, price_rows)
+        conn.close()
+        logger.info(f"Successfully saved {len(price_rows)} price records for {target_date_str}")
 
     return len(price_rows)
 
