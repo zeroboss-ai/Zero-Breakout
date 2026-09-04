@@ -37,10 +37,40 @@ function initApp() {
   // Load Signals immediately on startup
   loadSignals();
 
-  // ==================== TAB NAVIGATION ==================== //
+  // ==================== TAB NAVIGATION & MOBILE BACK BUTTON ==================== //
 
-  function switchTab(tabName, symbolToLoad = null) {
+  // Initialize root history state on page load
+  try {
+    const initialHash = (window.location.hash || '').replace('#', '').trim();
+    const validTabs = ['scanner', 'setup', 'watchlist', 'account'];
+    const startTab = validTabs.includes(initialHash) ? initialHash : 'scanner';
+    history.replaceState({ tab: startTab }, '', startTab === 'scanner' ? window.location.pathname : `#${startTab}`);
+  } catch (e) {}
+
+  function switchTab(tabName, symbolToLoad = null, pushHistory = true) {
+    if (state.currentTab === tabName && !symbolToLoad) return;
+
+    const previousTab = state.currentTab;
     state.currentTab = tabName;
+
+    // Push history entry if navigating to a different tab or stock
+    if (pushHistory) {
+      try {
+        if (tabName !== 'scanner') {
+          history.pushState(
+            { tab: tabName, symbol: symbolToLoad || state.currentSymbol },
+            '',
+            `#${tabName}`
+          );
+        } else if (previousTab !== 'scanner') {
+          history.pushState(
+            { tab: 'scanner' },
+            '',
+            window.location.pathname
+          );
+        }
+      } catch (e) {}
+    }
 
     // Update bottom nav buttons
     navBtns.forEach(btn => {
@@ -60,6 +90,9 @@ function initApp() {
       }
     });
 
+    // Scroll to top when switching tabs for smooth mobile feel
+    window.scrollTo({ top: 0, behavior: 'instant' });
+
     // Tab specific actions
     if (tabName === 'scanner') {
       loadSignals();
@@ -71,6 +104,28 @@ function initApp() {
       loadWatchlist();
     }
   }
+
+  // Handle Mobile Hardware Back Button & Browser Back Swipe
+  window.addEventListener('popstate', (event) => {
+    // 1. If any modal is open, close the modal first without switching tab
+    const brokerModal = document.getElementById('brokerModal');
+    if (brokerModal && brokerModal.style.display !== 'none' && brokerModal.style.display !== '') {
+      brokerModal.style.display = 'none';
+      return;
+    }
+
+    // 2. Tab Navigation via History
+    const targetState = event.state;
+    if (targetState && targetState.tab) {
+      switchTab(targetState.tab, targetState.symbol, false);
+    } else {
+      // If popped back to root and currently not on scanner, return to scanner tab
+      if (state.currentTab !== 'scanner') {
+        switchTab('scanner', null, false);
+      }
+      // If already on scanner, browser/app exits naturally!
+    }
+  });
 
   navBtns.forEach(btn => {
     btn.addEventListener('click', () => {
