@@ -1,5 +1,5 @@
-// ZeroBreakout PWA Service Worker v4.0.0
-const CACHE_NAME = 'zerobreakout-pwa-v4.0.0';
+// ZeroBreakout PWA Service Worker v4.1.0
+const CACHE_NAME = 'zerobreakout-pwa-v4.1.0';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/static/js/api.js',
   '/static/js/chart.js',
   '/static/js/app.js',
+  '/static/js/firebase-auth.js',
   '/static/assets/icon.png',
   '/static/assets/icon-192.png',
   '/static/assets/icon-512.png',
