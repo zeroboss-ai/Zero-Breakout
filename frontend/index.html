@@ -425,7 +425,54 @@
           </div>
         </div>
 
-        <!-- 7. LEGAL, SEBI DISCLAIMER & APP VERSION -->
+        <!-- 7. LEGAL, ABOUT & COMMUNITY -->
+        <div class="legal-links-card">
+          <h4 style="font-size: 11.5px; font-weight: 700; margin-bottom: 6px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">About & Legal Documentation</h4>
+          <div class="legal-menu-list">
+            <a href="/about" class="legal-menu-item">
+              <div class="lmi-left">
+                <span class="lmi-icon">📖</span>
+                <div class="lmi-text">
+                  <span class="lmi-title">About ZeroBreakout</span>
+                  <span class="lmi-desc">Technical pattern scanner for NSE Indian stocks</span>
+                </div>
+              </div>
+              <span class="lmi-arrow">→</span>
+            </a>
+            <a href="/privacy" class="legal-menu-item">
+              <div class="lmi-left">
+                <span class="lmi-icon">🔒</span>
+                <div class="lmi-text">
+                  <span class="lmi-title">Privacy Policy</span>
+                  <span class="lmi-desc">How your account and watchlist data is protected</span>
+                </div>
+              </div>
+              <span class="lmi-arrow">→</span>
+            </a>
+            <a href="/terms" class="legal-menu-item">
+              <div class="lmi-left">
+                <span class="lmi-icon">⚖️</span>
+                <div class="lmi-text">
+                  <span class="lmi-title">Terms of Service & Disclaimer</span>
+                  <span class="lmi-desc">Educational use only & SEBI disclaimer</span>
+                </div>
+              </div>
+              <span class="lmi-arrow">→</span>
+            </a>
+            <a href="https://t.me/zerobreakout" target="_blank" rel="noopener noreferrer" class="legal-menu-item">
+              <div class="lmi-left">
+                <span class="lmi-icon">💬</span>
+                <div class="lmi-text">
+                  <span class="lmi-title">Telegram Community</span>
+                  <span class="lmi-desc">Join @zerobreakout for live alerts & discussion</span>
+                </div>
+              </div>
+              <span class="lmi-arrow">↗</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- 8. LEGAL, SEBI DISCLAIMER & APP VERSION -->
         <div class="sebi-legal-card">
           <div class="legal-header">
             <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" style="color: #64748B;">
@@ -437,9 +484,25 @@
             ZeroBreakout is an algorithmic technical structure scanner designed exclusively for educational and mathematical pattern identification purposes. We are not a SEBI registered investment advisor or research analyst. No content on this platform constitutes financial advice, buy/sell recommendations, or investment tips. Securities trading involves substantial market risk.
           </p>
           <div class="app-version-badge">
-            <span>Version 3.4.0 (FastAPI • SQLite WAL • Vectorized Engine)</span>
+            <span>Version 4.6.0 (FastAPI • SQLite WAL • Vectorized Engine)</span>
           </div>
         </div>
+
+        <!-- App Footer Links -->
+        <footer class="app-footer" style="padding: 20px 10px 40px; margin-top: 16px; border-top: none;">
+          <div class="footer-links">
+            <a href="/about">About</a>
+            <span>•</span>
+            <a href="/privacy">Privacy Policy</a>
+            <span>•</span>
+            <a href="/terms">Terms of Service</a>
+            <span>•</span>
+            <a href="https://t.me/zerobreakout" target="_blank" rel="noopener noreferrer">Telegram</a>
+          </div>
+          <div class="footer-copy">
+            © 2026 ZeroBreakout • Built strictly for educational & technical analysis purposes. Not SEBI registered.
+          </div>
+        </footer>
 
       </div>
     </main>
@@ -479,12 +542,12 @@
   <!-- Firebase SDKs (Google CDN) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="/static/js/firebase-auth.js?v=4.5.0"></script>
+  <script src="/static/js/firebase-auth.js?v=4.6.0"></script>
 
   <!-- App Scripts with Cache Busting -->
-  <script src="/static/js/api.js?v=4.5.0"></script>
-  <script src="/static/js/chart.js?v=4.5.0"></script>
-  <script src="/static/js/app.js?v=4.5.0"></script>
+  <script src="/static/js/api.js?v=4.6.0"></script>
+  <script src="/static/js/chart.js?v=4.6.0"></script>
+  <script src="/static/js/app.js?v=4.6.0"></script>
 
   <!-- PWA Service Worker & Install Controller -->
   <script>
