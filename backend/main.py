@@ -166,16 +166,12 @@ async def get_stock_history_data(
     limit_days = days_map.get(range, 252)
     history = get_stock_price_history(clean_sym, limit_days=limit_days + 50) # extra for SMA calc
 
-    # On-demand multi-year history auto-fetch if database has less than requested history
-    if (len(history) < min(limit_days, 500) and range in ["5Y", "10Y", "ALL"]) or not history:
-        try:
-            import yf_auto
-        except ImportError:
-            pass
+    # On-demand multi-year history auto-fetch if database has less than requested history (or fewer than 30 candles)
+    if len(history) < min(limit_days, 500) or len(history) < 30:
         try:
             import yfinance as yf
             from backend.database import upsert_price_batch, update_stock_ath_from_history
-            tk = yf.Ticker(f"{symbol.upper()}.NS")
+            tk = yf.Ticker(f"{clean_sym}.NS")
             df_yf = tk.history(period="10y")
             if not df_yf.empty:
                 df_yf = df_yf.reset_index()
@@ -183,21 +179,24 @@ async def get_stock_history_data(
                 df_yf["date"] = pd.to_datetime(df_yf[date_col]).dt.strftime("%Y-%m-%d")
                 candles_to_save = []
                 for _, r in df_yf.iterrows():
-                    candles_to_save.append((
-                        symbol.upper(),
-                        r["date"],
-                        float(r["Open"]),
-                        float(r["High"]),
-                        float(r["Low"]),
-                        float(r["Close"]),
-                        int(r["Volume"])
-                    ))
+                    try:
+                        candles_to_save.append((
+                            clean_sym,
+                            str(r["date"]),
+                            float(r["Open"]),
+                            float(r["High"]),
+                            float(r["Low"]),
+                            float(r["Close"]),
+                            int(r["Volume"])
+                        ))
+                    except Exception:
+                        continue
                 if candles_to_save:
                     upsert_price_batch(candles_to_save)
-                    update_stock_ath_from_history(symbol.upper())
-                    history = get_stock_price_history(symbol, limit_days=limit_days + 50)
-        except Exception:
-            pass
+                    update_stock_ath_from_history(clean_sym)
+                    history = get_stock_price_history(clean_sym, limit_days=limit_days + 50)
+        except Exception as yf_err:
+            logger.warning(f"Error fetching history for {clean_sym} from yfinance: {yf_err}")
     
     if not history:
         raise HTTPException(status_code=404, detail=f"No price history found for {symbol.upper()}")
