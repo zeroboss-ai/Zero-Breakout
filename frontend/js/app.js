@@ -13,7 +13,10 @@ function initApp() {
     currentRange: '1Y',
     signals: [],
     watchlist: [],
-    chartInstance: null
+    chartInstance: null,
+    chartRequestId: 0,
+    setupRequestId: 0,
+    aiRequestId: 0
   };
 
   // DOM Elements
@@ -29,11 +32,7 @@ function initApp() {
   const manualSyncBtn = document.getElementById('manualSyncBtn');
   const themeToggle = document.getElementById('themeToggle');
 
-  // Initialize Canvas Chart
-  const chartCanvas = document.getElementById('candlestickChart') || document.getElementById('stockChartCanvas');
-  if (chartCanvas) {
-    state.chartInstance = new BreakoutChart(chartCanvas);
-  }
+  // Chart instances are now managed cleanly per stock switch (destroyed and recreated)
 
   // Load Signals immediately on startup
   loadSignals();
@@ -204,12 +203,38 @@ function initApp() {
 
   // ==================== TAB 2: SETUP VIEW ==================== //
 
+  function showChartLoading(symbol) {
+    const overlay = document.getElementById('chartLoadingOverlay');
+    const loadingText = document.getElementById('chartLoadingText');
+    if (overlay) {
+      if (loadingText) loadingText.textContent = `Loading ${symbol || ''} chart...`;
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideChartLoading() {
+    const overlay = document.getElementById('chartLoadingOverlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
   async function loadStockSetup(symbol) {
-    state.currentSymbol = symbol.toUpperCase();
-    
-    // Update headers safely
+    if (!symbol) return;
+    const targetSymbol = symbol.toUpperCase();
+    state.currentSymbol = targetSymbol;
+    const currentSetupReqId = ++state.setupRequestId;
+
+    // Immediately destroy previous chart instance to avoid partial-state rendering
+    if (state.chartInstance) {
+      state.chartInstance.destroy();
+      state.chartInstance = null;
+    }
+    showChartLoading(targetSymbol);
+
+    // Update headers immediately
     const symEl = document.getElementById('setupSymbol') || document.getElementById('stockSymbol');
-    if (symEl) symEl.textContent = state.currentSymbol;
+    if (symEl) symEl.textContent = targetSymbol;
     const compEl = document.getElementById('setupCompanyName') || document.getElementById('stockCompanyName');
     if (compEl) compEl.textContent = 'Loading stock information...';
     const priceEl = document.getElementById('setupPrice') || document.getElementById('stockCurrentPrice');
@@ -217,17 +242,37 @@ function initApp() {
     const changeEl = document.getElementById('setupChange') || document.getElementById('stockChange');
     if (changeEl) changeEl.textContent = '—';
 
+    // Start loading chart & AI analysis concurrently tagged with request IDs
+    loadChartData(targetSymbol, state.currentRange, null);
+    loadAiAnalysis(targetSymbol);
+
     try {
-      const setup = await API.getStockSetup(state.currentSymbol);
+      const setup = await API.getStockSetup(targetSymbol);
+      
+      // RACE CONDITION CHECK: Discard stale response if user switched to another stock
+      if (currentSetupReqId !== state.setupRequestId || targetSymbol !== state.currentSymbol) {
+        console.log(`[Setup] Discarded stale setup data for ${targetSymbol} (currently active: ${state.currentSymbol})`);
+        return;
+      }
+
       renderSetupData(setup);
-      loadChartData(state.currentSymbol, state.currentRange, setup.latest_signal?.pivot_price);
-      loadAiAnalysis(state.currentSymbol);
+
+      // If chart is active for this stock, attach pivot price
+      if (state.chartInstance && state.chartInstance.symbol === targetSymbol && setup.latest_signal?.pivot_price) {
+        state.chartInstance.setPivotPrice(setup.latest_signal.pivot_price);
+      }
     } catch (err) {
-      showToast(`Error loading setup for ${state.currentSymbol}`);
+      if (currentSetupReqId === state.setupRequestId) {
+        const timestamp = new Date().toISOString();
+        console.error(`[Setup Error] Failed loading setup for ${targetSymbol} at ${timestamp}:`, err);
+        showToast(`Error loading setup for ${targetSymbol}`);
+      }
     }
   }
 
   function renderSetupData(setup) {
+    if (!setup || setup.symbol !== state.currentSymbol) return;
+
     const symEl = document.getElementById('setupSymbol') || document.getElementById('stockSymbol');
     if (symEl) symEl.textContent = setup.symbol;
     const compEl = document.getElementById('setupCompanyName') || document.getElementById('stockCompanyName');
@@ -340,17 +385,49 @@ function initApp() {
   }
 
   async function loadChartData(symbol, range, pivotPrice = null) {
+    if (!symbol) return;
+    const targetSymbol = symbol.toUpperCase();
+    const reqId = ++state.chartRequestId;
+
+    showChartLoading(targetSymbol);
+
     try {
-      const data = await API.getStockHistory(symbol, range);
-      if (state.chartInstance && data.candles) {
-        state.chartInstance.setData(data.candles, pivotPrice);
+      const data = await API.getStockHistory(targetSymbol, range);
+      
+      // RACE CONDITION CHECK: Tagged request check. Discard if stale!
+      if (reqId !== state.chartRequestId || targetSymbol !== state.currentSymbol) {
+        console.log(`[Chart] Discarded stale chart response for ${targetSymbol} (currently active: ${state.currentSymbol}, reqId: ${reqId} vs ${state.chartRequestId})`);
+        return;
       }
+
+      const chartCanvas = document.getElementById('candlestickChart') || document.getElementById('stockChartCanvas');
+      if (!chartCanvas) return;
+
+      // Fully destroy previous chart instance before recreating to prevent partial-state rendering
+      if (state.chartInstance) {
+        state.chartInstance.destroy();
+        state.chartInstance = null;
+      }
+
+      // Recreate a clean fresh chart instance tagged with targetSymbol
+      state.chartInstance = new BreakoutChart(chartCanvas, targetSymbol);
+      state.chartInstance.setData(data.candles || [], pivotPrice);
+
+      hideChartLoading();
     } catch (err) {
-      console.warn('Chart history error:', err);
+      if (reqId === state.chartRequestId) {
+        const timestamp = new Date().toISOString();
+        console.error(`[Chart Fetch Error] Failed loading chart for ${targetSymbol} (${range}) at ${timestamp}:`, err);
+        hideChartLoading();
+      }
     }
   }
 
   async function loadAiAnalysis(symbol) {
+    if (!symbol) return;
+    const targetSymbol = symbol.toUpperCase();
+    const reqId = ++state.aiRequestId;
+
     const aiBody = document.getElementById('aiAnalysisBody');
     if (!aiBody) return;
     aiBody.innerHTML = `
@@ -361,16 +438,27 @@ function initApp() {
     `;
 
     try {
-      const analysis = await API.getAiAnalysis(symbol);
+      const analysis = await API.getAiAnalysis(targetSymbol);
+      
+      // RACE CONDITION CHECK: Discard stale AI analysis response
+      if (reqId !== state.aiRequestId || targetSymbol !== state.currentSymbol) {
+        console.log(`[AI Analysis] Discarded stale AI analysis for ${targetSymbol} (currently active: ${state.currentSymbol})`);
+        return;
+      }
+
       renderAiAnalysis(analysis);
     } catch (err) {
-      if (aiBody) {
-        aiBody.innerHTML = `
-          <div style="color: var(--text-secondary); font-size: 13px; line-height: 1.5;">
-            <p><strong>Technical Synthesis:</strong> Analyzing price action around key pivot levels.</p>
-            <p style="margin-top: 6px;">Consolidation above key moving averages suggests institutional support.</p>
-          </div>
-        `;
+      if (reqId === state.aiRequestId) {
+        const timestamp = new Date().toISOString();
+        console.error(`[AI Error] Failed loading AI analysis for ${targetSymbol} at ${timestamp}:`, err);
+        if (aiBody) {
+          aiBody.innerHTML = `
+            <div style="color: var(--text-secondary); font-size: 13px; line-height: 1.5;">
+              <p><strong>Technical Synthesis:</strong> Analyzing price action around key pivot levels.</p>
+              <p style="margin-top: 6px;">Consolidation above key moving averages suggests institutional support.</p>
+            </div>
+          `;
+        }
       }
     }
   }
@@ -411,7 +499,8 @@ function initApp() {
       rangeBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.currentRange = btn.dataset.range;
-      loadChartData(state.currentSymbol, state.currentRange);
+      const pivot = state.chartInstance ? state.chartInstance.pivotPrice : null;
+      loadChartData(state.currentSymbol, state.currentRange, pivot);
     });
   });
 
