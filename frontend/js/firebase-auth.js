@@ -23,7 +23,11 @@ window.firebaseAuth = {
   auth,
   signInWithGoogle: async () => {
     const result = await signInWithPopup(auth, provider);
-    return result.user;
+    const idToken = await result.user.getIdToken();
+    return { user: result.user, idToken: idToken };
+  },
+  getIdToken: async () => {
+    return auth.currentUser ? await auth.currentUser.getIdToken() : null;
   },
   signOut: async () => {
     await fbSignOut(auth);
