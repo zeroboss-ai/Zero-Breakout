@@ -105,8 +105,8 @@ def upsert_stock(symbol: str, company_name: str, sector: str = "General", market
         INSERT INTO stocks (symbol, company_name, sector, market_cap_cr, all_time_high, ath_date, listing_date, is_active, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
         ON CONFLICT(symbol) DO UPDATE SET
-            company_name=excluded.company_name,
-            sector=excluded.sector,
+            company_name=CASE WHEN excluded.company_name != excluded.symbol AND excluded.company_name != '' THEN excluded.company_name ELSE stocks.company_name END,
+            sector=CASE WHEN excluded.sector != 'General' AND excluded.sector != '' THEN excluded.sector ELSE stocks.sector END,
             market_cap_cr=CASE WHEN excluded.market_cap_cr > 0 THEN excluded.market_cap_cr ELSE stocks.market_cap_cr END,
             all_time_high=CASE WHEN excluded.all_time_high > stocks.all_time_high THEN excluded.all_time_high ELSE stocks.all_time_high END,
             ath_date=CASE WHEN excluded.all_time_high > stocks.all_time_high THEN excluded.ath_date ELSE stocks.ath_date END,
@@ -234,7 +234,6 @@ def get_latest_signals(pattern_type: Optional[str] = None, search_query: Optiona
 
     cursor = conn.execute(query, params)
     rows = cursor.fetchall()
-    conn.close()
 
     result = []
     for r in rows:
@@ -267,6 +266,7 @@ def get_latest_signals(pattern_type: Optional[str] = None, search_query: Optiona
             d["change_pct"] = 0.0
 
         result.append(d)
+    conn.close()
     return result
 
 def get_stock_setup(symbol: str) -> Optional[Dict[str, Any]]:
