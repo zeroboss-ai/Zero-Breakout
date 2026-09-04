@@ -1,5 +1,5 @@
-// ZeroBreakout PWA Service Worker v4.2.0
-const CACHE_NAME = 'zerobreakout-pwa-v4.2.0';
+// ZeroBreakout PWA Service Worker v4.4.0
+const CACHE_NAME = 'zerobreakout-pwa-v4.4.0';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
