@@ -936,8 +936,8 @@ function initApp() {
         }
       }
 
-      // Automatically unlock Admin Portal & Broker link editing if logged in as Zerobossai@gmail.com
-      if (auth.is_admin) {
+      // Automatically unlock Admin Portal & Broker link editing ONLY if verified is_admin
+      if (auth.is_admin && auth.token) {
         if (adminPortalSection) adminPortalSection.style.display = 'block';
         if (adminEditBrokerBtn) adminEditBrokerBtn.style.display = 'inline-block';
         loadAdminMetrics();
@@ -953,6 +953,28 @@ function initApp() {
       if (adminEditBrokerBtn) adminEditBrokerBtn.style.display = 'none';
       if (accountLogoutBtn) accountLogoutBtn.style.display = 'none';
     }
+  }
+
+  // Cryptographically verify existing session on page load
+  async function verifyStoredSession() {
+    const auth = getUserAuth();
+    if (auth && auth.is_admin) {
+      if (!auth.token) {
+        // Unauthenticated admin claim without token -> reset to guest
+        setUserAuth(null);
+        return;
+      }
+      try {
+        const check = await API.checkAuthStatus(auth.token);
+        if (!check.is_admin) {
+          setUserAuth(null);
+          return;
+        }
+      } catch (e) {
+        console.warn('Session verification notice:', e);
+      }
+    }
+    setUserAuth(auth);
   }
 
   async function loadAdminMetrics() {
@@ -974,58 +996,38 @@ function initApp() {
       googleSignInBtn.innerHTML = `<span>Connecting to Google...</span>`;
 
       try {
-        if (window.firebaseAuth && window.firebaseAuth.signInWithGoogle) {
-          const user = await window.firebaseAuth.signInWithGoogle();
-          const email = user.email || '';
-          const name = user.displayName || email.split('@')[0];
-          const photo = user.photoURL || '';
+        if (!window.firebaseAuth || !window.firebaseAuth.signInWithGoogle) {
+          throw new Error('Authentication module initializing. Please click again in 2 seconds.');
+        }
 
-          // Sync with backend admin check
-          let res = {};
-          try {
-            res = await API.adminLogin(email);
-          } catch (e) {
-            res = { email, is_admin: email.toLowerCase() === 'zerobossai@gmail.com' };
-          }
+        const { user, idToken } = await window.firebaseAuth.signInWithGoogle();
+        const email = user.email || '';
+        const name = user.displayName || email.split('@')[0];
+        const photo = user.photoURL || '';
 
-          const authPayload = {
-            email: email,
-            name: name,
-            photo: photo,
-            token: res.token || 'fb_token',
-            is_admin: res.is_admin || (email.toLowerCase() === 'zerobossai@gmail.com')
-          };
+        // Authenticate token securely with backend
+        const res = await API.login({ email: email, id_token: idToken });
 
-          setUserAuth(authPayload);
-          if (authPayload.is_admin) {
-            showToast('👑 Master Admin Access Activated!');
-          } else {
-            showToast(`Welcome, ${name}!`);
-          }
+        const authPayload = {
+          email: email,
+          name: name,
+          photo: photo,
+          token: res.token || null,
+          is_admin: res.is_admin === true
+        };
+
+        setUserAuth(authPayload);
+        if (authPayload.is_admin) {
+          showToast('👑 Master Admin Access Activated!');
         } else {
-          // Graceful fallback prompt
-          const email = prompt('Sign in with Google Account:\nEnter your Google email address:', 'Zerobossai@gmail.com');
-          if (email && email.includes('@')) {
-            const res = await API.adminLogin(email.trim());
-            setUserAuth({
-              email: res.email,
-              name: res.email.split('@')[0],
-              token: res.token,
-              is_admin: res.is_admin
-            });
-            if (res.is_admin) {
-              showToast('👑 Master Admin Access Activated!');
-            } else {
-              showToast(`Welcome ${res.email}!`);
-            }
-          }
+          showToast(`Welcome, ${name}!`);
         }
       } catch (err) {
         console.error('Google Sign In Error:', err);
         if (err.code === 'auth/popup-closed-by-user') {
           showToast('Sign in cancelled');
         } else if (err.code === 'auth/unauthorized-domain') {
-          showToast('Please add 127.0.0.1 / localhost to Firebase Auth authorized domains');
+          showToast('⚠️ Domain not yet added in Firebase Console. Please add zerobreakout.in to Firebase Auth Authorized Domains.');
         } else {
           showToast(err.message || 'Google sign in failed');
         }
@@ -1043,6 +1045,9 @@ function initApp() {
       }
     });
   }
+
+  // Check stored auth at startup
+  verifyStoredSession();
 
   // Handle Admin Instant Scan Trigger
   if (adminTriggerScanBtn) {
