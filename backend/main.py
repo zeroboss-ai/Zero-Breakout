@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, Path, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -69,8 +69,8 @@ async def health_check():
 
 @app.get("/api/signals")
 async def get_signals(
-    pattern: Optional[str] = Query(None, description="Filter by pattern type or 'all'"),
-    search: Optional[str] = Query(None, description="Search by symbol or company name"),
+    pattern: Optional[str] = Query(None, max_length=100, description="Filter by pattern type or 'all'"),
+    search: Optional[str] = Query(None, max_length=100, description="Search by symbol or company name"),
     limit: int = Query(150, ge=1, le=500)
 ):
     """
@@ -78,32 +78,38 @@ async def get_signals(
     No pattern computation on page load — instantaneous response!
     """
     try:
-        signals = get_latest_signals(pattern_type=pattern, search_query=search, limit=limit)
+        clean_pattern = str(pattern).strip() if pattern else None
+        clean_search = str(search).strip() if search else None
+        signals = get_latest_signals(pattern_type=clean_pattern, search_query=clean_search, limit=limit)
         return {"count": len(signals), "signals": signals}
     except Exception as e:
         logger.error(f"Error fetching signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stocks/{symbol}/setup")
-async def get_stock_setup_data(symbol: str):
+async def get_stock_setup_data(
+    symbol: str = Path(..., max_length=20, pattern=r"^[A-Za-z0-9_.\-]+$")
+):
     """
     Fetches stock metadata, current price, day change, active pattern signal, and watchlist state.
     """
-    setup = get_stock_setup(symbol)
+    clean_sym = str(symbol).strip().upper()
+    setup = get_stock_setup(clean_sym)
     if not setup:
-        raise HTTPException(status_code=404, detail=f"Stock {symbol.upper()} not found")
+        raise HTTPException(status_code=404, detail=f"Stock {clean_sym} not found")
     
-    setup["in_watchlist"] = is_in_watchlist(symbol)
+    setup["in_watchlist"] = is_in_watchlist(clean_sym)
     return setup
 
 @app.get("/api/stocks/{symbol}/history")
 async def get_stock_history_data(
-    symbol: str,
-    range: str = Query("1Y", pattern="^(1M|6M|1Y|5Y|10Y|ALL)$")
+    symbol: str = Path(..., max_length=20, pattern=r"^[A-Za-z0-9_.\-]+$"),
+    range: str = Query("1Y", max_length=5, pattern=r"^(1M|6M|1Y|5Y|10Y|ALL)$")
 ):
     """
     Returns OHLCV candlestick data and overlaid moving averages (20 SMA & 50 SMA).
     """
+    clean_sym = str(symbol).strip().upper()
     days_map = {
         "1M": 25,
         "6M": 130,
@@ -113,7 +119,7 @@ async def get_stock_history_data(
         "ALL": 2500
     }
     limit_days = days_map.get(range, 252)
-    history = get_stock_price_history(symbol, limit_days=limit_days + 50) # extra for SMA calc
+    history = get_stock_price_history(clean_sym, limit_days=limit_days + 50) # extra for SMA calc
 
     # On-demand multi-year history auto-fetch if database has less than requested history
     if (len(history) < min(limit_days, 500) and range in ["5Y", "10Y", "ALL"]) or not history:
@@ -186,16 +192,19 @@ async def get_stock_history_data(
     }
 
 @app.get("/api/stocks/{symbol}/ai-analysis")
-async def get_stock_ai_analysis(symbol: str):
+async def get_stock_ai_analysis(
+    symbol: str = Path(..., max_length=20, pattern=r"^[A-Za-z0-9_.\-]+$")
+):
     """
     Generates AI-powered technical pattern breakdown using Gemini API.
     """
-    setup = get_stock_setup(symbol)
+    clean_sym = str(symbol).strip().upper()
+    setup = get_stock_setup(clean_sym)
     if not setup:
-        raise HTTPException(status_code=404, detail=f"Stock {symbol.upper()} not found")
+        raise HTTPException(status_code=404, detail=f"Stock {clean_sym} not found")
 
     signal = setup.get("latest_signal")
-    analysis = get_gemini_analysis(symbol, setup, signal)
+    analysis = get_gemini_analysis(clean_sym, setup, signal)
     return analysis
 
 @app.get("/api/watchlist")
@@ -207,12 +216,15 @@ async def get_user_watchlist():
     return {"count": len(items), "items": items}
 
 @app.post("/api/watchlist/{symbol}")
-async def toggle_stock_watchlist(symbol: str):
+async def toggle_stock_watchlist(
+    symbol: str = Path(..., max_length=20, pattern=r"^[A-Za-z0-9_.\-]+$")
+):
     """
     Toggles watchlist state for a stock.
     """
-    is_added = toggle_watchlist(symbol, user_id="default_user")
-    return {"symbol": symbol.upper(), "in_watchlist": is_added}
+    clean_sym = str(symbol).strip().upper()
+    is_added = toggle_watchlist(clean_sym, user_id="default_user")
+    return {"symbol": clean_sym, "in_watchlist": is_added}
 
 ADMIN_EMAILS = [
     "zerobossai@gmail.com",
@@ -222,11 +234,11 @@ ADMIN_EMAILS = [
 
 ADMIN_SESSION_TOKEN = os.environ.get("ADMIN_SESSION_TOKEN", "zb_admin_token_zerobossai_8899")
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class LoginRequest(BaseModel):
-    email: str
-    password: Optional[str] = None
+    email: str = Field(..., min_length=3, max_length=120)
+    password: Optional[str] = Field(None, max_length=100)
 
 @app.post("/api/auth/login")
 async def user_login(req: LoginRequest):
@@ -235,8 +247,11 @@ async def user_login(req: LoginRequest):
     - If email is Zerobossai@gmail.com -> Grants full Admin privileges.
     - If email is any trader's email -> Grants Trader Account access.
     """
+    if req.password and len(req.password) > 100:
+        raise HTTPException(status_code=400, detail="Password exceeds maximum allowed length (100 characters).")
+
     email_clean = req.email.strip().lower()
-    if not email_clean or "@" not in email_clean:
+    if not email_clean or "@" not in email_clean or len(email_clean) > 120:
         raise HTTPException(status_code=400, detail="Please provide a valid email address.")
 
     if email_clean in [e for e in ADMIN_EMAILS if e]:
@@ -259,14 +274,20 @@ async def user_login(req: LoginRequest):
         }
 
 @app.get("/api/auth/status")
-async def check_auth_status(token: Optional[str] = None, email: Optional[str] = None):
+async def check_auth_status(
+    token: Optional[str] = Query(None, max_length=128),
+    email: Optional[str] = Query(None, max_length=120)
+):
     """
     Checks if current session is authenticated as Admin.
     """
     is_admin = False
-    if token == ADMIN_SESSION_TOKEN:
+    clean_token = str(token).strip() if token else ""
+    clean_email = str(email).strip().lower() if email else ""
+
+    if clean_token == ADMIN_SESSION_TOKEN:
         is_admin = True
-    elif email and email.strip().lower() in [e for e in ADMIN_EMAILS if e]:
+    elif clean_email and clean_email in [e for e in ADMIN_EMAILS if e]:
         is_admin = True
 
     return {
@@ -277,14 +298,21 @@ async def check_auth_status(token: Optional[str] = None, email: Optional[str] = 
 @app.post("/api/sync/run")
 @app.post("/api/admin/scan")
 @app.get("/api/admin/scan")
-async def trigger_manual_sync(background_tasks: BackgroundTasks, token: Optional[str] = None, email: Optional[str] = None):
+async def trigger_manual_sync(
+    background_tasks: BackgroundTasks,
+    token: Optional[str] = Query(None, max_length=128),
+    email: Optional[str] = Query(None, max_length=120)
+):
     """
     Manually triggers Bhavcopy sync and Pattern scan on-demand anytime.
     Authorized for Admin (Zerobossai@gmail.com).
     """
+    clean_token = str(token).strip() if token else ""
+    clean_email = str(email).strip().lower() if email else ""
+
     # Verify Admin Authorization
     is_auth = False
-    if token == ADMIN_SESSION_TOKEN or (email and email.strip().lower() in [e for e in ADMIN_EMAILS if e]):
+    if clean_token == ADMIN_SESSION_TOKEN or (clean_email and clean_email in [e for e in ADMIN_EMAILS if e]):
         is_auth = True
     elif not os.environ.get("PRODUCTION"): # Allow local dev
         is_auth = True
@@ -299,11 +327,15 @@ async def trigger_manual_sync(background_tasks: BackgroundTasks, token: Optional
     }
 
 @app.post("/api/admin/bhavcopy")
-async def trigger_bhavcopy_ingest(background_tasks: BackgroundTasks, token: Optional[str] = None):
+async def trigger_bhavcopy_ingest(
+    background_tasks: BackgroundTasks,
+    token: Optional[str] = Query(None, max_length=128)
+):
     """
     Forces today's Bhavcopy download and ingestion.
     """
-    if token != ADMIN_SESSION_TOKEN and os.environ.get("PRODUCTION"):
+    clean_token = str(token).strip() if token else ""
+    if clean_token != ADMIN_SESSION_TOKEN and os.environ.get("PRODUCTION"):
         raise HTTPException(status_code=403, detail="Unauthorized.")
     
     background_tasks.add_task(run_daily_eod_pipeline)

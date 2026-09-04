@@ -15,16 +15,19 @@ def get_gemini_analysis(symbol: str, stock_data: Dict[str, Any], signal_data: Op
     """
     api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY)
     
-    current_price = stock_data.get("current_price", 0)
-    company_name = stock_data.get("company_name", symbol)
-    sector = stock_data.get("sector", "General")
-    ath = stock_data.get("all_time_high", 0)
-    change_pct = stock_data.get("change_pct", 0)
+    sym_clean = str(symbol)[:20].strip().upper()
+    current_price = float(stock_data.get("current_price", 0) or 0)
+    company_name = str(stock_data.get("company_name", sym_clean))[:100].replace('"', '').replace('\n', ' ')
+    sector = str(stock_data.get("sector", "General"))[:50].replace('"', '').replace('\n', ' ')
+    ath = float(stock_data.get("all_time_high", 0) or 0)
+    change_pct = float(stock_data.get("change_pct", 0) or 0)
 
-    pattern_type = signal_data.get("pattern_type", "Consolidation / Setup") if signal_data else "Technical Setup"
-    pivot_price = signal_data.get("pivot_price", current_price) if signal_data else current_price
-    pct_vs_pivot = signal_data.get("percent_vs_pivot", 0.0) if signal_data else 0.0
-    trigger_date = signal_data.get("trigger_date", "Recent") if signal_data else "Recent"
+    pattern_type = str(signal_data.get("pattern_type", "Consolidation / Setup") if signal_data else "Technical Setup")[:50].replace('"', '').replace('\n', ' ')
+    pivot_price = float(signal_data.get("pivot_price", current_price) if signal_data else current_price or 0)
+    pct_vs_pivot = float(signal_data.get("percent_vs_pivot", 0.0) if signal_data else 0.0 or 0)
+    trigger_date = str(signal_data.get("trigger_date", "Recent") if signal_data else "Recent")[:20]
+
+    symbol = sym_clean
 
     # If Gemini API key is available, attempt live generation
     if api_key:
