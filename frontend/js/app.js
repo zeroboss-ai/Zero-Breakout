@@ -1027,7 +1027,7 @@ function initApp() {
         if (err.code === 'auth/popup-closed-by-user') {
           showToast('Sign in cancelled');
         } else if (err.code === 'auth/unauthorized-domain') {
-          showToast('⚠️ Domain not yet added to Firebase Authorized Domains. Use Master Admin Access or add zerobreakout.in in Firebase Console.');
+          showToast('⚠️ Domain not yet added in Firebase Console. Please add zerobreakout.in to Firebase Auth Authorized Domains.');
         } else {
           showToast(err.message || 'Google sign in failed');
         }
@@ -1043,85 +1043,6 @@ function initApp() {
           <span>Sign in with Google</span>
         `;
       }
-    });
-  }
-
-  // Master Admin Passkey Login Modal Handling
-  const openAdminModalBtn = document.getElementById('openAdminModalBtn');
-  const adminPassModal = document.getElementById('adminPassModal');
-  const closeAdminModalBtn = document.getElementById('closeAdminModalBtn');
-  const submitAdminPasswordBtn = document.getElementById('submitAdminPasswordBtn');
-  const adminPasswordInput = document.getElementById('adminPasswordInput');
-
-  if (openAdminModalBtn && adminPassModal) {
-    openAdminModalBtn.addEventListener('click', () => {
-      adminPassModal.style.display = 'flex';
-      if (adminPasswordInput) {
-        adminPasswordInput.value = '';
-        adminPasswordInput.focus();
-      }
-    });
-  }
-
-  if (closeAdminModalBtn && adminPassModal) {
-    closeAdminModalBtn.addEventListener('click', () => {
-      adminPassModal.style.display = 'none';
-    });
-  }
-
-  if (adminPassModal) {
-    adminPassModal.addEventListener('click', (e) => {
-      if (e.target === adminPassModal) {
-        adminPassModal.style.display = 'none';
-      }
-    });
-  }
-
-  async function handleAdminPasswordSubmit() {
-    const password = (adminPasswordInput?.value || '').trim();
-    if (!password) {
-      showToast('Please enter Master Admin Password');
-      return;
-    }
-    if (submitAdminPasswordBtn) {
-      submitAdminPasswordBtn.disabled = true;
-      submitAdminPasswordBtn.textContent = 'Verifying Passkey...';
-    }
-
-    try {
-      const res = await API.login({
-        email: 'Zerobossai@gmail.com',
-        password: password
-      });
-
-      if (res.is_admin && res.token) {
-        setUserAuth({
-          email: 'Zerobossai@gmail.com',
-          name: 'Master Administrator',
-          token: res.token,
-          is_admin: true
-        });
-        if (adminPassModal) adminPassModal.style.display = 'none';
-        showToast('👑 Master Admin Access Activated!');
-      } else {
-        throw new Error('Admin credentials rejected');
-      }
-    } catch (err) {
-      showToast(err.message || 'Incorrect Admin Password. Access Denied.');
-    } finally {
-      if (submitAdminPasswordBtn) {
-        submitAdminPasswordBtn.disabled = false;
-        submitAdminPasswordBtn.textContent = 'Unlock Master Admin Portal →';
-      }
-    }
-  }
-
-  if (submitAdminPasswordBtn) {
-    submitAdminPasswordBtn.addEventListener('click', handleAdminPasswordSubmit);
-  }
-  if (adminPasswordInput) {
-    adminPasswordInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleAdminPasswordSubmit();
     });
   }
 

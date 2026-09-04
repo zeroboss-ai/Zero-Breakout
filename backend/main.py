@@ -255,7 +255,6 @@ ADMIN_EMAILS = [
 ]
 
 ADMIN_SESSION_TOKEN = os.environ.get("ADMIN_SESSION_TOKEN", "zb_admin_token_zerobossai_8899")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ZeroBoss@2026")
 
 from pydantic import BaseModel, Field
 import urllib.parse
@@ -284,22 +283,16 @@ def verify_google_id_token(id_token: str) -> Optional[Dict[str, Any]]:
 
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=120)
-    password: Optional[str] = Field(None, max_length=100)
     id_token: Optional[str] = Field(None, max_length=4096)
 
 @app.post("/api/auth/login")
 async def user_login(req: LoginRequest):
     """
     Strict Authenticated Sign In:
-    - Master Admin access strictly requires:
-      1. Correct Master Admin Password (`password == ADMIN_PASSWORD`), OR
-      2. Verified Google OAuth ID Token for an authorized admin email.
+    - Master Admin access strictly requires verified Google OAuth ID Token for Zerobossai@gmail.com.
     - Standard Trader Account:
-      Accepts authenticated Google session or email.
+      Accepts authenticated Google session for traders.
     """
-    if req.password and len(req.password) > 100:
-        raise HTTPException(status_code=400, detail="Password exceeds maximum allowed length (100 characters).")
-
     email_clean = req.email.strip().lower()
     if not email_clean or "@" not in email_clean or len(email_clean) > 120:
         raise HTTPException(status_code=400, detail="Please provide a valid email address.")
@@ -310,12 +303,8 @@ async def user_login(req: LoginRequest):
     if is_target_admin:
         is_authenticated = False
         
-        # 1. Check Master Password
-        if req.password and req.password == ADMIN_PASSWORD:
-            is_authenticated = True
-            
-        # 2. Check Cryptographic Google OAuth ID Token
-        if not is_authenticated and req.id_token:
+        # Cryptographic Google OAuth ID Token verification directly with Google
+        if req.id_token:
             token_data = verify_google_id_token(req.id_token)
             if token_data and token_data.get("email", "").lower() in valid_admin_emails:
                 is_authenticated = True
@@ -323,7 +312,7 @@ async def user_login(req: LoginRequest):
         if not is_authenticated:
             raise HTTPException(
                 status_code=401,
-                detail="Unauthorized: Master Admin login requires valid Master Admin Password or verified Google Sign-In as Zerobossai@gmail.com."
+                detail="Unauthorized: Master Admin access is strictly restricted to authenticated Google Sign-In as Zerobossai@gmail.com."
             )
 
         return {
