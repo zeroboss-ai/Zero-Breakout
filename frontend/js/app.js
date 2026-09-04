@@ -32,43 +32,60 @@ function initApp() {
   const manualSyncBtn = document.getElementById('manualSyncBtn');
   const themeToggle = document.getElementById('themeToggle');
 
-  // Chart instances are now managed cleanly per stock switch (destroyed and recreated)
+  // Initialize route and state on page load
+  const pathname = window.location.pathname;
+  let initialTab = 'scanner';
+  let initialSymbol = null;
 
-  // Load Signals immediately on startup
-  loadSignals();
+  if (window.INITIAL_STOCK) {
+    initialTab = 'setup';
+    initialSymbol = window.INITIAL_STOCK;
+  } else if (pathname.startsWith('/stock/')) {
+    initialTab = 'setup';
+    const parts = pathname.split('/stock/')[1].split('/');
+    initialSymbol = (parts[0] || '').trim().toUpperCase();
+  } else if (pathname === '/watchlist') {
+    initialTab = 'watchlist';
+  } else if (pathname === '/account') {
+    initialTab = 'account';
+  } else {
+    const hash = (window.location.hash || '').replace('#', '').trim();
+    if (['scanner', 'setup', 'watchlist', 'account'].includes(hash)) {
+      initialTab = hash;
+    }
+  }
+
+  state.currentTab = initialTab;
+  if (initialSymbol) state.currentSymbol = initialSymbol;
+
+  // Initialize browser history state
+  try {
+    const startUrl = initialTab === 'setup' && initialSymbol ? `/stock/${initialSymbol}` : (initialTab === 'scanner' ? '/' : `/${initialTab}`);
+    history.replaceState({ tab: initialTab, symbol: initialSymbol }, '', startUrl);
+  } catch (e) {}
+
+  // Boot the appropriate tab
+  switchTab(initialTab, initialSymbol, false);
 
   // ==================== TAB NAVIGATION & MOBILE BACK BUTTON ==================== //
 
-  // Initialize root history state on page load
-  try {
-    const initialHash = (window.location.hash || '').replace('#', '').trim();
-    const validTabs = ['scanner', 'setup', 'watchlist', 'account'];
-    const startTab = validTabs.includes(initialHash) ? initialHash : 'scanner';
-    history.replaceState({ tab: startTab }, '', startTab === 'scanner' ? window.location.pathname : `#${startTab}`);
-  } catch (e) {}
-
   function switchTab(tabName, symbolToLoad = null, pushHistory = true) {
-    if (state.currentTab === tabName && !symbolToLoad) return;
-
-    const previousTab = state.currentTab;
+    const sym = (symbolToLoad || state.currentSymbol || 'RELIANCE').toUpperCase();
+    if (tabName === 'setup') state.currentSymbol = sym;
     state.currentTab = tabName;
 
-    // Push history entry if navigating to a different tab or stock
+    // Push history entry with real crawlable SEO URL
     if (pushHistory) {
       try {
-        if (tabName !== 'scanner') {
-          history.pushState(
-            { tab: tabName, symbol: symbolToLoad || state.currentSymbol },
-            '',
-            `#${tabName}`
-          );
-        } else if (previousTab !== 'scanner') {
-          history.pushState(
-            { tab: 'scanner' },
-            '',
-            window.location.pathname
-          );
+        let newUrl = '/';
+        if (tabName === 'setup') {
+          newUrl = `/stock/${sym}`;
+        } else if (tabName === 'watchlist') {
+          newUrl = '/watchlist';
+        } else if (tabName === 'account') {
+          newUrl = '/account';
         }
+        history.pushState({ tab: tabName, symbol: sym }, '', newUrl);
       } catch (e) {}
     }
 
@@ -96,12 +113,14 @@ function initApp() {
     // Tab specific actions
     if (tabName === 'scanner') {
       loadSignals();
+      document.title = "ZeroBreakout — NSE Stock Breakout Scanner & Technical Setup Terminal";
     } else if (tabName === 'setup') {
-      const defaultSym = state.signals.length > 0 ? state.signals[0].symbol : (state.currentSymbol || 'RELIANCE');
-      const sym = symbolToLoad || state.currentSymbol || defaultSym;
       loadStockSetup(sym);
     } else if (tabName === 'watchlist') {
       loadWatchlist();
+      document.title = "Watchlist — ZeroBreakout";
+    } else if (tabName === 'account') {
+      document.title = "Account & Settings — ZeroBreakout";
     }
   }
 
@@ -119,11 +138,17 @@ function initApp() {
     if (targetState && targetState.tab) {
       switchTab(targetState.tab, targetState.symbol, false);
     } else {
-      // If popped back to root and currently not on scanner, return to scanner tab
-      if (state.currentTab !== 'scanner') {
+      const p = window.location.pathname;
+      if (p.startsWith('/stock/')) {
+        const s = p.split('/stock/')[1].split('/')[0].trim().toUpperCase();
+        switchTab('setup', s, false);
+      } else if (p === '/watchlist') {
+        switchTab('watchlist', null, false);
+      } else if (p === '/account') {
+        switchTab('account', null, false);
+      } else {
         switchTab('scanner', null, false);
       }
-      // If already on scanner, browser/app exits naturally!
     }
   });
 
@@ -327,6 +352,10 @@ function initApp() {
 
   function renderSetupData(setup) {
     if (!setup || setup.symbol !== state.currentSymbol) return;
+
+    const pat = setup.latest_signal?.pattern_type || 'Technical Setup';
+    const cName = setup.company_name || setup.symbol;
+    document.title = `${cName} (${setup.symbol}) — ${pat} | ZeroBreakout`;
 
     const symEl = document.getElementById('setupSymbol') || document.getElementById('stockSymbol');
     if (symEl) symEl.textContent = setup.symbol;

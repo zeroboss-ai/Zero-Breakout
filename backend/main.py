@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, Path, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, Response
 import pandas as pd
 
 from .database import (
@@ -23,6 +23,7 @@ from .database import (
 from .seed_data import seed_database_if_empty
 from .scheduler import start_scheduler, stop_scheduler, run_daily_eod_pipeline
 from .gemini_service import get_gemini_analysis
+from .seo_renderer import generate_homepage_html, generate_stock_ssr_html, generate_sitemap_xml
 import threading
 
 logging.basicConfig(
@@ -489,7 +490,7 @@ async def get_scanner_stats():
         "pattern_distribution": pattern_counts
     }
 
-# ----------------- FRONTEND STATIC SERVING & PWA ROUTES ----------------- #
+# ----------------- FRONTEND STATIC SERVING & SEO ROUTES ----------------- #
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
@@ -517,9 +518,76 @@ if os.path.exists(FRONTEND_DIR):
     async def serve_icon_512():
         return FileResponse(os.path.join(FRONTEND_DIR, "assets", "icon-512.png"), media_type="image/png")
 
+    @app.get("/sitemap.xml")
+    async def serve_sitemap():
+        """
+        Dynamically generates and serves real-time XML Sitemap with all 1,110+ active stock setup pages.
+        """
+        try:
+            stocks = get_all_active_symbols()
+            xml_content = generate_sitemap_xml(stocks)
+            return Response(content=xml_content, media_type="application/xml")
+        except Exception as e:
+            logger.error(f"Error generating sitemap: {e}")
+            return Response(content='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>', media_type="application/xml")
+
+    @app.get("/robots.txt")
+    async def serve_robots():
+        """
+        Serves crawl-friendly robots.txt allowing search engines to index stock pages and content.
+        """
+        robots_txt = """User-agent: *
+Allow: /
+Allow: /stock/
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Disallow: /api/
+
+Sitemap: https://www.zerobreakout.in/sitemap.xml
+"""
+        return Response(content=robots_txt, media_type="text/plain")
+
+    @app.get("/stock/{symbol}")
+    async def serve_stock_ssr(symbol: str = Path(..., max_length=25)):
+        """
+        Server-Side Rendered (SSR) stock page with unique meta tags, crawlable content, and schema.org JSON-LD.
+        """
+        clean_sym = str(symbol).strip().upper()
+        setup = get_stock_setup(clean_sym)
+        if not setup:
+            # Check if stock exists in universe without an active signal
+            stocks = get_all_active_symbols()
+            matching = [s for s in stocks if s.get("symbol") == clean_sym]
+            if matching:
+                setup = {
+                    "symbol": clean_sym,
+                    "company_name": matching[0].get("company_name", clean_sym),
+                    "sector": matching[0].get("sector", "NSE Equity"),
+                    "market_cap_cr": matching[0].get("market_cap_cr", 0.0),
+                    "all_time_high": matching[0].get("all_time_high", 0.0),
+                    "current_price": 0.0,
+                    "change": 0.0,
+                    "change_pct": 0.0,
+                    "latest_signal": None
+                }
+            else:
+                raise HTTPException(status_code=404, detail=f"Stock {clean_sym} not found in NSE universe")
+        
+        html_content = generate_stock_ssr_html(setup)
+        return HTMLResponse(content=html_content, status_code=200)
+
     @app.get("/")
+    @app.get("/scanner")
     async def serve_index():
-        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+        html_content = generate_homepage_html()
+        return HTMLResponse(content=html_content, status_code=200)
+
+    @app.get("/watchlist")
+    @app.get("/account")
+    async def serve_app_tabs():
+        html_content = generate_homepage_html()
+        return HTMLResponse(content=html_content, status_code=200)
 
     @app.get("/about")
     async def serve_about():
@@ -541,4 +609,4 @@ if os.path.exists(FRONTEND_DIR):
         file_path = os.path.join(FRONTEND_DIR, full_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
-        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+        return HTMLResponse(content=generate_homepage_html(), status_code=200)
