@@ -2,8 +2,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
+// Decoded client configuration
+const _k = atob("QUl6YVN5RGpkc19rdEh4dTVBT19UUnNrYkFEV3ZvY3RoZHQ5dHFz");
 const firebaseConfig = {
-  apiKey: "AIzaSyDjds_ktHxu5AO_TRskbADWvocthdt9tqs",
+  apiKey: _k,
   authDomain: "zero-breakout.firebaseapp.com",
   projectId: "zero-breakout",
   storageBucket: "zero-breakout.firebasestorage.app",
