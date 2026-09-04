@@ -56,20 +56,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.middleware("http")
-async def handle_uptime_head_requests(request, call_next):
-    if request.method == "HEAD":
-        from starlette.responses import Response
-        return Response(status_code=200)
-    return await call_next(request)
-
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 
 # ----------------- HEALTH & UPTIME MONITOR ENDPOINTS ----------------- #
 
 @app.get("/health")
 @app.head("/health")
-@app.head("/")
 async def health_check():
     return {"status": "ok", "app": "ZeroBreakout Terminal", "timestamp": datetime.utcnow().isoformat()}
 
