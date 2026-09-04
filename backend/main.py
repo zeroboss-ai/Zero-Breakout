@@ -499,6 +499,18 @@ if os.path.exists(FRONTEND_DIR):
     async def serve_index():
         return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
 
+    @app.get("/about")
+    async def serve_about():
+        return FileResponse(os.path.join(FRONTEND_DIR, "about.html"))
+
+    @app.get("/privacy")
+    async def serve_privacy():
+        return FileResponse(os.path.join(FRONTEND_DIR, "privacy.html"))
+
+    @app.get("/terms")
+    async def serve_terms():
+        return FileResponse(os.path.join(FRONTEND_DIR, "terms.html"))
+
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         # Don't intercept API routes
