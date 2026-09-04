@@ -70,17 +70,27 @@ const API = {
     return await resp.json();
   },
 
-  async adminLogin(email) {
+  async login(payload) {
     const resp = await fetch(`${this.baseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email })
+      body: JSON.stringify(payload)
     });
     const data = await resp.json();
     if (!resp.ok) {
-      throw new Error(data.detail || 'Login failed');
+      throw new Error(data.detail || 'Authentication failed');
     }
     return data;
+  },
+
+  async adminLogin(email, password, id_token) {
+    return this.login({ email, password, id_token });
+  },
+
+  async checkAuthStatus(token) {
+    const resp = await fetch(`${this.baseUrl}/api/auth/status?token=${encodeURIComponent(token || '')}`);
+    if (!resp.ok) return { is_admin: false };
+    return await resp.json();
   },
 
   async triggerAdminScan(token) {

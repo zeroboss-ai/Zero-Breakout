@@ -234,6 +234,9 @@
             </svg>
             <span>Sign in with Google</span>
           </button>
+          <button id="openAdminModalBtn" class="btn-admin-access-link" type="button" title="Master Administrator Login">
+            <span>👑 Master Admin Access (Passkey)</span>
+          </button>
         </div>
 
         <!-- 1B: Signed In Trader Profile -->
@@ -476,13 +479,35 @@
     </nav>
   </div>
 
+  <!-- Master Admin Passkey Modal -->
+  <div id="adminPassModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">👑</span>
+          <h3 style="font-size: 15px; font-weight: 700;">Master Admin Login</h3>
+        </div>
+        <button id="closeAdminModalBtn" class="btn-close-modal" type="button">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 0 6px;">
+        <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+          Enter Master Administrator Secret Password to activate full administrative privileges:
+        </p>
+        <input type="password" id="adminPasswordInput" class="search-input" placeholder="Enter Master Admin Password..." style="width: 100%; margin-bottom: 14px; box-sizing: border-box;" autocomplete="current-password" />
+        <button id="submitAdminPasswordBtn" class="btn-primary" type="button" style="width: 100%; padding: 12px; font-weight: 700; justify-content: center;">
+          Unlock Master Admin Portal →
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Firebase Auth Modular SDK -->
-  <script type="module" src="/static/js/firebase-auth.js?v=4.2.0"></script>
+  <script type="module" src="/static/js/firebase-auth.js?v=4.3.0"></script>
 
   <!-- Scripts with Cache Busting -->
-  <script src="/static/js/api.js?v=4.2.0"></script>
-  <script src="/static/js/chart.js?v=4.2.0"></script>
-  <script src="/static/js/app.js?v=4.2.0"></script>
+  <script src="/static/js/api.js?v=4.3.0"></script>
+  <script src="/static/js/chart.js?v=4.3.0"></script>
+  <script src="/static/js/app.js?v=4.3.0"></script>
 
   <!-- PWA Service Worker & Install Controller -->
   <script>

@@ -255,19 +255,47 @@ ADMIN_EMAILS = [
 ]
 
 ADMIN_SESSION_TOKEN = os.environ.get("ADMIN_SESSION_TOKEN", "zb_admin_token_zerobossai_8899")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ZeroBoss@2026")
 
 from pydantic import BaseModel, Field
+import urllib.parse
+import json
+
+def verify_google_id_token(id_token: str) -> Optional[Dict[str, Any]]:
+    """
+    Cryptographically verifies Firebase / Google OAuth ID token using Google's official public API.
+    Returns token payload dict if valid and email is verified, or None if invalid.
+    """
+    if not id_token or len(id_token) < 20 or len(id_token) > 4096:
+        return None
+    try:
+        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(id_token)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "ZeroBreakout-Auth/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode())
+                email = data.get("email", "").strip().lower()
+                email_verified = str(data.get("email_verified", "")).lower() in ["true", "1"]
+                if email and email_verified:
+                    return data
+    except Exception as e:
+        logger.warning(f"Google ID token verification notice: {e}")
+    return None
 
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=120)
     password: Optional[str] = Field(None, max_length=100)
+    id_token: Optional[str] = Field(None, max_length=4096)
 
 @app.post("/api/auth/login")
 async def user_login(req: LoginRequest):
     """
-    Universal Sign In:
-    - If email is Zerobossai@gmail.com -> Grants full Admin privileges.
-    - If email is any trader's email -> Grants Trader Account access.
+    Strict Authenticated Sign In:
+    - Master Admin access strictly requires:
+      1. Correct Master Admin Password (`password == ADMIN_PASSWORD`), OR
+      2. Verified Google OAuth ID Token for an authorized admin email.
+    - Standard Trader Account:
+      Accepts authenticated Google session or email.
     """
     if req.password and len(req.password) > 100:
         raise HTTPException(status_code=400, detail="Password exceeds maximum allowed length (100 characters).")
@@ -276,7 +304,28 @@ async def user_login(req: LoginRequest):
     if not email_clean or "@" not in email_clean or len(email_clean) > 120:
         raise HTTPException(status_code=400, detail="Please provide a valid email address.")
 
-    if email_clean in [e for e in ADMIN_EMAILS if e]:
+    valid_admin_emails = [e for e in ADMIN_EMAILS if e]
+    is_target_admin = email_clean in valid_admin_emails
+
+    if is_target_admin:
+        is_authenticated = False
+        
+        # 1. Check Master Password
+        if req.password and req.password == ADMIN_PASSWORD:
+            is_authenticated = True
+            
+        # 2. Check Cryptographic Google OAuth ID Token
+        if not is_authenticated and req.id_token:
+            token_data = verify_google_id_token(req.id_token)
+            if token_data and token_data.get("email", "").lower() in valid_admin_emails:
+                is_authenticated = True
+
+        if not is_authenticated:
+            raise HTTPException(
+                status_code=401,
+                detail="Unauthorized: Master Admin login requires valid Master Admin Password or verified Google Sign-In as Zerobossai@gmail.com."
+            )
+
         return {
             "status": "success",
             "is_admin": True,
@@ -286,6 +335,7 @@ async def user_login(req: LoginRequest):
             "message": "Welcome back Master Admin! ZeroBreakout Control Engine Activated."
         }
     else:
+        # Standard Trader login (No admin privileges)
         return {
             "status": "success",
             "is_admin": False,
@@ -297,20 +347,13 @@ async def user_login(req: LoginRequest):
 
 @app.get("/api/auth/status")
 async def check_auth_status(
-    token: Optional[str] = Query(None, max_length=128),
-    email: Optional[str] = Query(None, max_length=120)
+    token: Optional[str] = Query(None, max_length=128)
 ):
     """
-    Checks if current session is authenticated as Admin.
+    Checks if current session token is authenticated as Admin.
     """
-    is_admin = False
     clean_token = str(token).strip() if token else ""
-    clean_email = str(email).strip().lower() if email else ""
-
-    if clean_token == ADMIN_SESSION_TOKEN:
-        is_admin = True
-    elif clean_email and clean_email in [e for e in ADMIN_EMAILS if e]:
-        is_admin = True
+    is_admin = (clean_token == ADMIN_SESSION_TOKEN)
 
     return {
         "is_admin": is_admin,
@@ -322,25 +365,17 @@ async def check_auth_status(
 @app.get("/api/admin/scan")
 async def trigger_manual_sync(
     background_tasks: BackgroundTasks,
-    token: Optional[str] = Query(None, max_length=128),
-    email: Optional[str] = Query(None, max_length=120)
+    token: Optional[str] = Query(None, max_length=128)
 ):
     """
     Manually triggers Bhavcopy sync and Pattern scan on-demand anytime.
-    Authorized for Admin (Zerobossai@gmail.com).
+    Authorized strictly for Admin via session token.
     """
     clean_token = str(token).strip() if token else ""
-    clean_email = str(email).strip().lower() if email else ""
 
-    # Verify Admin Authorization
-    is_auth = False
-    if clean_token == ADMIN_SESSION_TOKEN or (clean_email and clean_email in [e for e in ADMIN_EMAILS if e]):
-        is_auth = True
-    elif not os.environ.get("PRODUCTION"): # Allow local dev
-        is_auth = True
-
-    if not is_auth:
-        raise HTTPException(status_code=403, detail="Unauthorized: Please log in with Zerobossai@gmail.com to trigger scans.")
+    # Verify Admin Authorization strictly by token
+    if clean_token != ADMIN_SESSION_TOKEN:
+        raise HTTPException(status_code=403, detail="Unauthorized: Valid Master Admin token required.")
 
     background_tasks.add_task(run_daily_eod_pipeline)
     return {
@@ -357,8 +392,8 @@ async def trigger_bhavcopy_ingest(
     Forces today's Bhavcopy download and ingestion.
     """
     clean_token = str(token).strip() if token else ""
-    if clean_token != ADMIN_SESSION_TOKEN and os.environ.get("PRODUCTION"):
-        raise HTTPException(status_code=403, detail="Unauthorized.")
+    if clean_token != ADMIN_SESSION_TOKEN:
+        raise HTTPException(status_code=403, detail="Unauthorized: Valid Master Admin token required.")
     
     background_tasks.add_task(run_daily_eod_pipeline)
     return {"status": "success", "message": "Bhavcopy ingestion and pattern scan started in background."}
