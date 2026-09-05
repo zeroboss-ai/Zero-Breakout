@@ -150,7 +150,7 @@ async def get_stock_setup_data(
 @app.get("/api/stocks/{symbol}/history")
 async def get_stock_history_data(
     symbol: str = Path(..., max_length=20, pattern=r"^[A-Za-z0-9_.\-]+$"),
-    range: str = Query("1Y", max_length=5, pattern=r"^(1M|6M|1Y|5Y|10Y|ALL)$")
+    range: str = Query("1Y", max_length=5, pattern=r"^(1M|6M|1Y|3Y|5Y|10Y|ALL)$")
 ):
     """
     Returns OHLCV candlestick data and overlaid moving averages (20 SMA & 50 SMA).
@@ -160,6 +160,7 @@ async def get_stock_history_data(
         "1M": 25,
         "6M": 130,
         "1Y": 252,
+        "3Y": 750,
         "5Y": 1250,
         "10Y": 2500,
         "ALL": 2500
