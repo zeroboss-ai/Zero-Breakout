@@ -180,21 +180,48 @@ def fetch_and_populate_real_data():
     return scan_results
 
 def seed_database_if_empty():
-    """Ensures database is initialized with full 1,110 institutional stocks and signals"""
-    from .database import init_db, get_all_active_symbols, get_connection
+    """Ensures database is initialized with full institutional stocks, breakout signals, and multi-year price history"""
+    from .database import init_db, get_all_active_symbols, get_connection, DB_PATH
+    import gzip, shutil
+
     init_db()
-    existing = get_all_active_symbols()
     
     conn = get_connection()
-    signal_count = 0
+    price_count = 0
+    stock_count = 0
     try:
-        signal_count = conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
+        price_count = conn.execute("SELECT COUNT(*) FROM price_history").fetchone()[0]
+        stock_count = conn.execute("SELECT COUNT(*) FROM stocks WHERE is_active = 1").fetchone()[0]
     except Exception:
         pass
     conn.close()
 
-    if len(existing) < 500 or signal_count < 50:
-        logger.info(f"Database currently holds {len(existing)} stocks and {signal_count} signals. Loading full universe seed data...")
+    if price_count < 1000 or stock_count < 500:
+        logger.info(f"Database currently holds {stock_count} stocks and {price_count} price history candles. Restoring pre-packaged multi-year history bundle...")
+        
+        gz_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed_data", "seed_history.db.gz")
+        uncompressed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed_data", "seed_history.db")
+
+        # 1. Primary: Unpack compressed binary database bundle with full multi-year OHLCV
+        if os.path.exists(gz_path):
+            try:
+                with gzip.open(gz_path, "rb") as f_in, open(DB_PATH, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                logger.info("✓ Successfully restored complete multi-year price history and universe database from seed_history.db.gz!")
+                return
+            except Exception as e:
+                logger.error(f"Error decompressing seed_history.db.gz: {e}")
+
+        # 2. Secondary fallback: Uncompressed seed database
+        if os.path.exists(uncompressed_path):
+            try:
+                shutil.copy2(uncompressed_path, DB_PATH)
+                logger.info("✓ Successfully copied seed_history.db into active database!")
+                return
+            except Exception as e:
+                logger.error(f"Error copying seed_history.db: {e}")
+
+        # 3. Tertiary fallback: JSON universe seed
         seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seed_data", "universe_seed.json")
         if os.path.exists(seed_path):
             try:
@@ -231,10 +258,10 @@ def seed_database_if_empty():
             except Exception as e:
                 logger.error(f"Error seeding from universe_seed.json: {e}")
         
-        # Fallback to yfinance if seed file not present
+        # Fallback to online fetch if seed file not present
         fetch_and_populate_real_data()
     else:
-        logger.info(f"Database currently holds {len(existing)} active real stocks and {signal_count} signals.")
+        logger.info(f"Database currently holds {stock_count} active real stocks and {price_count} price history candles.")
 
 if __name__ == "__main__":
     fetch_and_populate_real_data()
