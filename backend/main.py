@@ -41,21 +41,13 @@ async def lifespan(app: FastAPI):
     # Start background scheduler for daily post-market scans
     start_scheduler()
 
-    # Background verification: Auto-fetch today's Bhavcopy if market is closed (>16:15 IST) and today's data is missing
+    # Background verification: Multi-day self-healing Bhavcopy & pattern sync on startup
     def auto_sync_on_startup():
         try:
-            from datetime import timezone, timedelta
-            ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-            if ist_now.weekday() < 5 and (ist_now.hour > 16 or (ist_now.hour == 16 and ist_now.minute >= 15)):
-                today_str = ist_now.strftime("%Y-%m-%d")
-                conn = get_connection()
-                count = conn.execute("SELECT COUNT(DISTINCT symbol) as cnt FROM price_history WHERE date = ?", (today_str,)).fetchone()["cnt"]
-                conn.close()
-                if count < 500:
-                    logger.info(f"Startup check: Today's Bhavcopy ({today_str}) not yet loaded. Ingesting today's market close and scanning patterns in background...")
-                    run_daily_eod_pipeline()
-                else:
-                    logger.info(f"Startup check: Today's Bhavcopy ({today_str}) already loaded for {count} stocks.")
+            from .data_fetcher import sync_missing_bhavcopies
+            logger.info("Startup check: Verifying Bhavcopy state and running multi-day catch-up sync in background...")
+            res = sync_missing_bhavcopies()
+            logger.info(f"Startup auto_sync finished: {res}")
         except Exception as err:
             logger.error(f"Startup auto_sync error: {err}")
 

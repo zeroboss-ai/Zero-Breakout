@@ -3,7 +3,7 @@ import io
 import zipfile
 import requests
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 from typing import List, Dict, Any, Optional
 from .database import upsert_price_batch, upsert_stock, update_stock_ath_from_history, get_connection
@@ -89,6 +89,7 @@ def process_and_save_bhavcopy(df: pd.DataFrame, target_date_str: str) -> int:
         "TTLTRADGVOL": "volume",
         "TOTTRDQTY": "volume",
         "TOTAL_TRADED_QTY": "volume",
+        "TTL_TRD_QNTY": "volume",
         "SCTYSRS": "series",
         "SERIES": "series"
     }
@@ -243,3 +244,85 @@ def sync_stock_5year_history(symbol: str, company_name: str, sector: str, market
         logger.info(f"Synced {len(records)} daily candles for {symbol} (ATH: ₹{ath_val:.2f})")
     else:
         upsert_stock(symbol.upper(), company_name, sector, market_cap_cr, ath, None)
+
+def sync_missing_bhavcopies() -> Dict[str, Any]:
+    """
+    Automatic Multi-Day Catch-Up Engine:
+    Detects any missing trading sessions between the newest price_history date and current IST date/time.
+    Downloads all missing Bhavcopies chronologically, ingests them into the database, updates ATHs,
+    and runs the pattern detection scanner across the entire universe.
+    """
+    from .patterns.engine import pattern_engine
+
+    ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    logger.info(f"Checking for missing Bhavcopies. Current IST Time: {ist_now.strftime('%Y-%m-%d %H:%M:%S (%A)')}")
+
+    # Determine latest target date
+    # If weekday and before 16:15 IST, market is still active or Bhavcopy not yet ready, so target up to yesterday
+    if ist_now.weekday() < 5 and (ist_now.hour < 16 or (ist_now.hour == 16 and ist_now.minute < 15)):
+        target_end = ist_now - timedelta(days=1)
+    else:
+        target_end = ist_now
+
+    conn = get_connection()
+    row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
+    last_db_date_str = row["max_date"] if row and row["max_date"] else None
+    
+    if not last_db_date_str:
+        last_db_date = target_end - timedelta(days=30)
+    else:
+        last_db_date = datetime.strptime(last_db_date_str, "%Y-%m-%d")
+
+    logger.info(f"Latest database market date: {last_db_date.strftime('%Y-%m-%d')}. Target date: {target_end.strftime('%Y-%m-%d')}")
+
+    # Generate candidate trading days (Mon-Fri)
+    curr = last_db_date + timedelta(days=1)
+    dates_to_check = []
+    while curr.date() <= target_end.date():
+        if curr.weekday() < 5:  # Mon=0, Fri=4
+            dates_to_check.append(curr)
+        curr += timedelta(days=1)
+
+    if not dates_to_check:
+        logger.info("Database is already up to date with the latest NSE trading session.")
+        conn.close()
+        return {"status": "up_to_date", "synced_days": 0, "message": "Already up to date."}
+
+    logger.info(f"Identified {len(dates_to_check)} candidate trading days to verify: {[d.strftime('%Y-%m-%d') for d in dates_to_check]}")
+
+    synced_days = 0
+    total_candles_added = 0
+
+    for d in dates_to_check:
+        d_str = d.strftime("%Y-%m-%d")
+        existing_cnt = conn.execute("SELECT COUNT(DISTINCT symbol) as cnt FROM price_history WHERE date = ?", (d_str,)).fetchone()["cnt"]
+        if existing_cnt >= 500:
+            logger.info(f"[{d_str}] Already loaded ({existing_cnt} stocks). Skipping.")
+            continue
+
+        logger.info(f"[{d_str}] Missing from DB. Downloading Bhavcopy from NSE...")
+        df = fetch_nse_bhavcopy_for_date(d)
+        if df is not None and not df.empty:
+            saved = process_and_save_bhavcopy(df, d_str)
+            logger.info(f"[{d_str}] Successfully saved {saved} stock records.")
+            if saved > 0:
+                synced_days += 1
+                total_candles_added += saved
+        else:
+            logger.info(f"[{d_str}] No Bhavcopy available (likely market holiday or weekend).")
+
+    conn.close()
+
+    scan_results = None
+    if synced_days > 0:
+        logger.info(f"Catch-up complete: Ingested {synced_days} trading days ({total_candles_added} candles). Triggering pattern engine scan...")
+        scan_results = pattern_engine.scan_all_stocks()
+        logger.info(f"Pattern Engine Scan complete: {scan_results}")
+
+    return {
+        "status": "success",
+        "synced_days": synced_days,
+        "candles_added": total_candles_added,
+        "scan_results": scan_results
+    }
+
