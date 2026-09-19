@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from .data_fetcher import fetch_nse_bhavcopy_for_date, process_and_save_bhavcopy
+from .data_fetcher import fetch_nse_bhavcopy_for_date, process_and_save_bhavcopy, sync_missing_bhavcopies
 from .patterns.engine import pattern_engine
 
 logger = logging.getLogger("ZeroBreakout.Scheduler")
@@ -12,29 +12,22 @@ scheduler = BackgroundScheduler()
 def run_daily_eod_pipeline():
     """
     Automated Daily Pipeline:
-    1. Downloads Daily Bhavcopy from NSE (~4:15-5:00 PM IST)
-    2. Updates 5-year price history and stock all-time highs
-    3. Executes modular pattern detection scan across all stocks and IPOs
+    1. Runs multi-day catch-up engine to download all missing Bhavcopies up to today
+    2. Updates price history and stock all-time highs
+    3. Executes pattern detection scan across all stocks and IPOs
     4. Persists all signals to the signals table for instantaneous UI access
     """
-    now = datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
-    logger.info(f"[{today_str}] Running Daily EOD Bhavcopy & Pattern Pipeline (5:00 PM IST)...")
-
+    logger.info("Executing EOD Bhavcopy & Pattern Pipeline...")
     try:
-        # Step 1: Fetch and save today's Bhavcopy
-        df = fetch_nse_bhavcopy_for_date(now)
-        if df is not None and not df.empty:
-            saved_count = process_and_save_bhavcopy(df, today_str)
-            logger.info(f"Successfully processed {saved_count} records from today's Bhavcopy.")
+        sync_result = sync_missing_bhavcopies()
+        logger.info(f"EOD Pipeline Sync Result: {sync_result}")
+        if sync_result.get("scan_results"):
+            return sync_result["scan_results"]
         else:
-            logger.warning(f"Bhavcopy not yet published for {today_str}. Running pattern scan on latest available market candles.")
-
-        # Step 2: Run Pattern Scan across all stocks & IPOs
-        scan_results = pattern_engine.scan_all_stocks()
-        logger.info(f"Daily Pattern Scan completed: {scan_results}")
-        return scan_results
-
+            # If already up to date, run quick pattern scan to ensure fresh state
+            scan_results = pattern_engine.scan_all_stocks()
+            logger.info(f"EOD Pattern Scan complete: {scan_results}")
+            return scan_results
     except Exception as e:
         logger.error(f"Error executing daily EOD pipeline: {e}", exc_info=True)
         return {"error": str(e)}

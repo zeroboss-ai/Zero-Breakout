@@ -166,7 +166,7 @@ def fetch_and_populate_real_data():
             upsert_price_batch(price_rows)
             success_stocks += 1
             total_records += len(price_rows)
-            logger.info(f"✓ Synced {len(price_rows)} REAL daily candles for {sym} (Real ATH: ₹{real_ath:.2f} on {ath_date})")
+            logger.info(f"Synced {len(price_rows)} REAL daily candles for {sym} (Real ATH: Rs {real_ath:.2f} on {ath_date})")
 
         except Exception as err:
             logger.warning(f"Error processing real data for {sym}: {err}")
@@ -207,7 +207,7 @@ def seed_database_if_empty():
             try:
                 with gzip.open(gz_path, "rb") as f_in, open(DB_PATH, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
-                logger.info("✓ Successfully restored complete multi-year price history and universe database from seed_history.db.gz!")
+                logger.info("Successfully restored complete multi-year price history and universe database from seed_history.db.gz!")
                 return
             except Exception as e:
                 logger.error(f"Error decompressing seed_history.db.gz: {e}")
@@ -216,7 +216,7 @@ def seed_database_if_empty():
         if os.path.exists(uncompressed_path):
             try:
                 shutil.copy2(uncompressed_path, DB_PATH)
-                logger.info("✓ Successfully copied seed_history.db into active database!")
+                logger.info("Successfully copied seed_history.db into active database!")
                 return
             except Exception as e:
                 logger.error(f"Error copying seed_history.db: {e}")
@@ -253,7 +253,7 @@ def seed_database_if_empty():
                             sig.get("created_at")
                         ))
                 conn.close()
-                logger.info(f"✓ Successfully seeded {len(stocks)} institutional stocks and {len(signals)} breakout signals from JSON bundle!")
+                logger.info(f"Successfully seeded {len(stocks)} institutional stocks and {len(signals)} breakout signals from JSON bundle!")
                 return
             except Exception as e:
                 logger.error(f"Error seeding from universe_seed.json: {e}")
