@@ -438,6 +438,22 @@ async def trigger_bhavcopy_ingest(
     background_tasks.add_task(run_daily_eod_pipeline)
     return {"status": "success", "message": "Bhavcopy ingestion and pattern scan started in background."}
 
+@app.post("/api/admin/telegram-test")
+@app.get("/api/admin/telegram-test")
+async def trigger_telegram_test_broadcast(
+    token: Optional[str] = Query(None, max_length=128)
+):
+    """
+    Tests Telegram broadcast message to @ZeroBreakout.
+    """
+    clean_token = str(token).strip() if token else ""
+    if clean_token != ADMIN_SESSION_TOKEN:
+        raise HTTPException(status_code=403, detail="Unauthorized: Valid Master Admin token required.")
+
+    from .telegram_service import format_and_broadcast_eod_alerts
+    res = format_and_broadcast_eod_alerts()
+    return res
+
 @app.post("/api/sync/live")
 async def trigger_live_data_sync(background_tasks: BackgroundTasks):
     """

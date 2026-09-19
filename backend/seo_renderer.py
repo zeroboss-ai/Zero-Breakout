@@ -39,7 +39,7 @@ def generate_homepage_html() -> str:
                 },
                 "description": "Algorithmic technical structure and breakout pattern scanner for Indian NSE equity markets.",
                 "sameAs": [
-                    "https://t.me/zerobreakout"
+                    "https://t.me/ZeroBreakout"
                 ]
             },
             {

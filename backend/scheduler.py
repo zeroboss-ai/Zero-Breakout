@@ -21,13 +21,21 @@ def run_daily_eod_pipeline():
     try:
         sync_result = sync_missing_bhavcopies()
         logger.info(f"EOD Pipeline Sync Result: {sync_result}")
-        if sync_result.get("scan_results"):
-            return sync_result["scan_results"]
-        else:
+        final_results = sync_result.get("scan_results")
+        if not final_results:
             # If already up to date, run quick pattern scan to ensure fresh state
-            scan_results = pattern_engine.scan_all_stocks()
-            logger.info(f"EOD Pattern Scan complete: {scan_results}")
-            return scan_results
+            final_results = pattern_engine.scan_all_stocks()
+            logger.info(f"EOD Pattern Scan complete: {final_results}")
+
+        # Step 5: Broadcast EOD Breakout Digest to Telegram Channel (if configured)
+        try:
+            from .telegram_service import format_and_broadcast_eod_alerts
+            tg_res = format_and_broadcast_eod_alerts()
+            logger.info(f"Telegram EOD Broadcast Result: {tg_res}")
+        except Exception as tg_err:
+            logger.warning(f"Telegram EOD broadcast notice: {tg_err}")
+
+        return final_results
     except Exception as e:
         logger.error(f"Error executing daily EOD pipeline: {e}", exc_info=True)
         return {"error": str(e)}
