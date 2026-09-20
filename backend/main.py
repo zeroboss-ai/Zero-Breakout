@@ -441,18 +441,47 @@ async def trigger_bhavcopy_ingest(
 @app.post("/api/admin/telegram-test")
 @app.get("/api/admin/telegram-test")
 async def trigger_telegram_test_broadcast(
+    type: str = Query("eod", pattern="^(eod|premarket|weekend)$"),
     token: Optional[str] = Query(None, max_length=128)
 ):
     """
-    Tests Telegram broadcast message to @ZeroBreakout.
+    Tests Telegram broadcast messages to @ZeroBreakout.
+    Supported types: 'eod', 'premarket', 'weekend'.
     """
     clean_token = str(token).strip() if token else ""
     if clean_token != ADMIN_SESSION_TOKEN:
         raise HTTPException(status_code=403, detail="Unauthorized: Valid Master Admin token required.")
 
-    from .telegram_service import format_and_broadcast_eod_alerts
-    res = format_and_broadcast_eod_alerts()
-    return res
+    from .telegram_service import (
+        format_and_broadcast_eod_alerts,
+        format_and_broadcast_premarket_radar,
+        format_and_broadcast_weekend_digest
+    )
+
+    if type == "premarket":
+        return format_and_broadcast_premarket_radar()
+    elif type == "weekend":
+        return format_and_broadcast_weekend_digest()
+    else:
+        return format_and_broadcast_eod_alerts()
+
+from fastapi import Request
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Interactive Telegram Bot Webhook:
+    Receives incoming chat messages from traders chatting with @ZeroBreakoutBot
+    and processes commands like /stock RELIANCE, /fresh, /ath, /ipo, /stats.
+    """
+    try:
+        data = await request.json()
+        from .telegram_service import handle_telegram_incoming_update
+        background_tasks.add_task(handle_telegram_incoming_update, data)
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Telegram webhook error: {e}")
+        return {"ok": False, "error": str(e)}
 
 @app.post("/api/sync/live")
 async def trigger_live_data_sync(background_tasks: BackgroundTasks):
