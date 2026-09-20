@@ -25,10 +25,24 @@
   <link rel="shortcut icon" href="/static/favicon.png?v=3.8.0">
 
   <!-- Styles & Fonts -->
-  <link rel="stylesheet" href="/static/css/style.css?v=4.0.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=5.2.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* Critical Responsive Header & Navigation Fallbacks */
+    .desktop-nav-tabs { display: none !important; }
+    .theme-toggle-btn { background: var(--bg-secondary, #F7F9FA); border: 1px solid var(--border-color, #E2E8F0); border-radius: 8px; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-secondary, #64748B); }
+    .theme-toggle-btn .sun-icon { display: none; }
+    .theme-toggle-btn .moon-icon { display: block; }
+    [data-theme="dark"] .theme-toggle-btn .sun-icon { display: block; color: #F59E0B; }
+    [data-theme="dark"] .theme-toggle-btn .moon-icon { display: none; }
+    @media (min-width: 1024px) {
+      .desktop-nav-tabs { display: flex !important; }
+      .bottom-nav { display: none !important; }
+    }
+  </style>
 </head>
 <body>
   <div class="app-container">
@@ -599,12 +613,12 @@
   <!-- Firebase SDKs (Google CDN) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="/static/js/firebase-auth.js?v=4.6.0"></script>
+  <script src="/static/js/firebase-auth.js?v=5.2.0"></script>
 
   <!-- App Scripts with Cache Busting -->
-  <script src="/static/js/api.js?v=4.6.0"></script>
-  <script src="/static/js/chart.js?v=4.6.0"></script>
-  <script src="/static/js/app.js?v=4.6.0"></script>
+  <script src="/static/js/api.js?v=5.2.0"></script>
+  <script src="/static/js/chart.js?v=5.2.0"></script>
+  <script src="/static/js/app.js?v=5.2.0"></script>
 
   <!-- PWA Service Worker & Install Controller -->
   <script>
