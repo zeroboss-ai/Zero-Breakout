@@ -397,6 +397,6 @@ def toggle_watchlist(symbol: str, user_id: str = "default_user") -> bool:
 
 def get_all_active_symbols(min_mcap_cr: float = 2000.0) -> List[Dict[str, Any]]:
     conn = get_connection()
-    rows = conn.execute("SELECT symbol, company_name, sector, market_cap_cr, all_time_high, listing_date FROM stocks WHERE is_active = 1 AND market_cap_cr >= ?", (min_mcap_cr,)).fetchall()
+    rows = conn.execute("SELECT symbol, company_name, sector, market_cap_cr, all_time_high, ath_date, listing_date FROM stocks WHERE is_active = 1 AND market_cap_cr >= ?", (min_mcap_cr,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
