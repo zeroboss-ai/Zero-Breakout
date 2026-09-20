@@ -186,6 +186,74 @@ body {
   100% { transform: scale(0.95); opacity: 0.8; }
 }
 
+/* Desktop Nav Tabs (Hidden by default on mobile) */
+.desktop-nav-tabs {
+  display: none;
+}
+
+/* Live Market Badge */
+.live-market-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--green-gain);
+  background: var(--green-gain-bg);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 179, 134, 0.2);
+}
+
+/* Header Theme Toggle Button */
+.theme-toggle-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.theme-toggle-btn .sun-icon {
+  display: none;
+}
+
+.theme-toggle-btn .moon-icon {
+  display: block;
+}
+
+[data-theme="dark"] .theme-toggle-btn .sun-icon {
+  display: block;
+  color: #F59E0B;
+}
+
+[data-theme="dark"] .theme-toggle-btn .moon-icon {
+  display: none;
+}
+
+/* Setup Desktop Dual Column Container (Stack by default on Mobile) */
+.setup-desktop-layout {
+  display: block;
+}
+
+.setup-col-left,
+.setup-col-right {
+  display: block;
+}
+
 /* Main Content Area */
 .tab-view {
   display: none;
@@ -2115,6 +2183,438 @@ body {
   line-height: 1.5;
   max-width: 460px;
   margin: 0 auto;
+}
+
+/* ===================================================================
+   DESKTOP WIDESCREEN TRADING TERMINAL LAYOUT (min-width: 1024px)
+   100% Isolated from Mobile UI — Preserves Mobile Phone Pixel-Perfection
+   =================================================================== */
+
+@media (min-width: 1024px) {
+  /* 1. Base Container & App Layout */
+  .app-container {
+    max-width: 1380px;
+    width: 100%;
+    margin: 0 auto;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.07);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    min-height: 100vh;
+  }
+
+  [data-theme="dark"] .app-container {
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Hide Mobile Bottom Nav on Desktop */
+  .bottom-nav {
+    display: none !important;
+  }
+
+  .tab-view {
+    padding-bottom: 40px !important;
+  }
+
+  /* 2. Top Header & Navigation Bar */
+  .app-header {
+    padding: 14px 28px;
+    gap: 20px;
+  }
+
+  .brand-logo-img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .brand-title {
+    font-size: 18px;
+  }
+
+  .desktop-nav-tabs {
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-secondary);
+    padding: 4px 6px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+  }
+
+  .desktop-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    user-select: none;
+  }
+
+  .desktop-nav-btn svg {
+    flex-shrink: 0;
+  }
+
+  .desktop-nav-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .desktop-nav-btn.active {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    font-weight: 700;
+  }
+
+  [data-theme="dark"] .desktop-nav-btn.active {
+    background: var(--bg-card);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    color: var(--text-primary);
+  }
+
+  .desktop-nav-link.tg-nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0284C7;
+    background: rgba(2, 132, 199, 0.08);
+    border: 1px solid rgba(2, 132, 199, 0.2);
+    transition: all 0.15s ease;
+    margin-left: 6px;
+  }
+
+  .desktop-nav-link.tg-nav-link:hover {
+    background: rgba(2, 132, 199, 0.16);
+    color: #0284C7;
+  }
+
+  [data-theme="dark"] .desktop-nav-link.tg-nav-link {
+    color: #38BDF8;
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.25);
+  }
+
+  /* 3. Tab 1: Scanner View (Multi-column responsive grid) */
+  .scanner-search-box {
+    padding: 20px 28px 12px;
+  }
+
+  .search-input-wrapper {
+    max-width: 560px;
+  }
+
+  .search-input {
+    padding: 12px 16px 12px 42px;
+    font-size: 14.5px;
+    border-radius: 10px;
+  }
+
+  .filter-chips-wrapper {
+    padding: 8px 28px 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip {
+    padding: 7px 16px;
+    font-size: 12.5px;
+  }
+
+  .signals-list {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)) !important;
+    gap: 14px !important;
+    padding: 20px 28px 40px !important;
+    background-color: var(--bg-secondary) !important;
+  }
+
+  .signal-row {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    padding: 16px 18px !important;
+    box-shadow: var(--shadow-sm);
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    min-height: 108px !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease !important;
+  }
+
+  .signal-row:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+    border-color: var(--accent-blue) !important;
+    background-color: var(--bg-card) !important;
+  }
+
+  [data-theme="dark"] .signal-row:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    border-color: var(--accent-blue) !important;
+  }
+
+  .signal-symbol-col {
+    width: 100%;
+  }
+
+  .signal-top-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .signal-symbol {
+    font-size: 16.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .signal-price-inline {
+    font-size: 14.5px;
+    font-weight: 700;
+    margin-left: auto;
+    margin-right: 8px;
+  }
+
+  .signal-change-inline {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+
+  .signal-change-inline.price-positive {
+    background: var(--green-gain-bg);
+    color: var(--green-gain);
+  }
+
+  .signal-change-inline.price-negative {
+    background: var(--red-loss-bg);
+    color: var(--red-loss);
+  }
+
+  .signal-company-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 100%;
+    margin-top: 4px;
+    display: block;
+  }
+
+  .signal-pattern-badge {
+    align-self: flex-start;
+    margin-top: 6px;
+    font-size: 11.5px;
+  }
+
+  /* 4. Tab 2: Stock Setup (Dual-Pane Trading Station Layout) */
+  .setup-desktop-layout {
+    display: grid !important;
+    grid-template-columns: 1.55fr 1fr !important;
+    gap: 24px !important;
+    padding: 24px 28px 40px !important;
+    align-items: start !important;
+  }
+
+  .setup-col-left {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .setup-header {
+    padding: 0 0 16px 0 !important;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .setup-symbol {
+    font-size: 28px !important;
+    font-weight: 800 !important;
+  }
+
+  .setup-current-price {
+    font-size: 32px !important;
+    font-weight: 800 !important;
+  }
+
+  .setup-price-change {
+    font-size: 15px !important;
+  }
+
+  .chart-section {
+    padding: 0 !important;
+    border-bottom: none !important;
+  }
+
+  .chart-canvas-container {
+    height: 490px !important;
+    border-radius: 8px;
+  }
+
+  .setup-col-right {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    position: sticky;
+    top: 80px;
+  }
+
+  .stats-card-section {
+    padding: 0 !important;
+  }
+
+  .stats-card {
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .ai-card-section {
+    padding: 0 !important;
+  }
+
+  .ai-card {
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .sebi-disclaimer-box {
+    margin: 0 !important;
+    border-radius: 10px;
+  }
+
+  /* 5. Tab 3: Watchlist (Multi-column responsive grid) */
+  #tab-watchlist > div:first-child {
+    padding: 20px 28px 12px !important;
+  }
+
+  #watchlistContainer {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)) !important;
+    gap: 14px !important;
+    padding: 20px 28px 40px !important;
+    background-color: var(--bg-secondary) !important;
+  }
+
+  .watchlist-row {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    padding: 18px 20px !important;
+    box-shadow: var(--shadow-sm);
+    border-bottom: 1px solid var(--border-color) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .watchlist-row:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+    border-color: var(--accent-blue) !important;
+  }
+
+  [data-theme="dark"] .watchlist-row:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    border-color: var(--accent-blue) !important;
+  }
+
+  /* 6. Tab 4: Account & Settings (2-Column Dashboard Grid) */
+  .account-view-container {
+    padding: 24px 28px 40px !important;
+    max-width: 1080px;
+    margin: 0 auto;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 20px !important;
+    align-items: start !important;
+  }
+
+  .google-auth-card,
+  .modern-profile-card {
+    grid-column: 1 / -1;
+  }
+
+  .market-clock-card {
+    grid-column: 1;
+    margin-top: 0;
+  }
+
+  .settings-group {
+    grid-column: 2;
+    margin-top: 0;
+  }
+
+  .broker-links-card {
+    grid-column: 1 / -1;
+  }
+
+  .broker-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .admin-portal-box {
+    grid-column: 1 / -1;
+  }
+
+  .telegram-alerts-card {
+    grid-column: 1 / -1;
+  }
+
+  .legal-links-card {
+    grid-column: 1;
+    margin-top: 0;
+  }
+
+  .sebi-legal-card {
+    grid-column: 2;
+    margin-top: 0;
+  }
+
+  .app-footer {
+    grid-column: 1 / -1;
+  }
+
+  /* 7. Legal & Documentation Pages */
+  .legal-page-container {
+    max-width: 960px !important;
+  }
+
+  .legal-content-body {
+    padding: 28px 36px 60px !important;
+  }
+
+  .compare-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 20px !important;
+  }
+
+  .pattern-badge-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 14px !important;
+  }
 }
 
 
