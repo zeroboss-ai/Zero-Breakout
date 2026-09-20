@@ -6,8 +6,8 @@ from .base import BasePatternDetector, PatternSignal
 class ATHBreakoutDetector(BasePatternDetector):
     """
     Pattern 1: All-time high breakout.
-    Triggers when price tests or clears historical All-Time High within strict recency (last 3-5 sessions)
-    and within the active entry buy zone (-1.5% to +6.0% vs ATH).
+    Triggers when price tests or clears the stock's TRUE lifetime All-Time High within strict recency (last 4 sessions)
+    and within the active entry buy zone (-1.5% to +6.0% vs lifetime ATH).
     """
     @property
     def name(self) -> str:
@@ -28,48 +28,50 @@ class ATHBreakoutDetector(BasePatternDetector):
         latest_date = str(latest_candle["date"])
         symbol = str(stock_info.get("symbol", latest_candle.get("symbol", "UNKNOWN")))
 
-        # Check prior historical high from all candles prior to the recent 5-day window
-        prior_hist_high = float(df.iloc[:-5]["high"].max()) if len(df) > 10 else float(df.iloc[:-1]["high"].max())
+        # 1. Determine TRUE lifetime All-Time High
         stored_ath = float(stock_info.get("all_time_high", 0) or 0)
-        ath_date = stock_info.get("ath_date")
+        hist_high = float(df["high"].max())
+        true_ath = max(stored_ath, hist_high)
 
-        pivot_ath = max(prior_hist_high, stored_ath) if (ath_date and ath_date != latest_date) else prior_hist_high
-        if pivot_ath <= 0:
+        # Must have a valid positive ATH
+        if true_ath <= 0:
             return None
 
-        pct_vs_pivot = ((latest_close - pivot_ath) / pivot_ath) * 100.0
+        # 2. Strict Distance Check against TRUE lifetime ATH
+        pct_vs_ath = ((latest_close - true_ath) / true_ath) * 100.0
 
-        # Strict Price Range: Must be within actionable zone (-1.5% to +6.0%)
-        # If > +6.0%, target extended/complete. If < -3.5%, stop-loss triggered.
-        if not (-1.5 <= pct_vs_pivot <= 6.0):
+        # Must be within actionable zone (-1.5% to +6.0% of true lifetime ATH)
+        # If price is lower than -1.5% (e.g. -10%, -60% like Solara), it is NOT an ATH breakout!
+        if not (-1.5 <= pct_vs_ath <= 6.0):
             return None
 
-        # Check recency: Did price test or break ATH in the last 4 sessions?
+        # 3. Check recency: Did price test or break the true lifetime ATH in the last 4 trading sessions?
         recent_highs = df.iloc[-4:]["high"].values
-        if not any(h >= pivot_ath * 0.99 for h in recent_highs):
+        if not any(h >= true_ath * 0.985 for h in recent_highs):
             return None
 
+        # 4. Check if breakout is fresh (first time crossing ATH today vs yesterday)
         prev_close = float(df.iloc[-2]["close"]) if len(df) >= 2 else 0.0
-        is_fresh = bool(prev_close < pivot_ath and (latest_close >= pivot_ath * 0.99 or latest_high >= pivot_ath))
+        is_fresh = bool(prev_close < true_ath * 0.99 and (latest_close >= true_ath * 0.99 or latest_high >= true_ath))
 
-        support_level = round(float(df.iloc[-20:]["low"].min()) if len(df) >= 20 else pivot_ath * 0.965, 2)
-        sma_20 = round(float(df["close"].rolling(20).mean().iloc[-1]), 2) if len(df) >= 20 else round(pivot_ath * 0.97, 2)
+        support_level = round(float(df.iloc[-20:]["low"].min()) if len(df) >= 20 else true_ath * 0.965, 2)
+        sma_20 = round(float(df["close"].rolling(20).mean().iloc[-1]), 2) if len(df) >= 20 else round(true_ath * 0.97, 2)
 
         return PatternSignal(
             symbol=symbol,
             pattern_type=self.name,
             trigger_date=latest_date,
-            pivot_price=round(pivot_ath, 2),
+            pivot_price=round(true_ath, 2),
             current_price=latest_close,
-            percent_vs_pivot=round(pct_vs_pivot, 2),
+            percent_vs_pivot=round(pct_vs_ath, 2),
             metadata={
-                "prior_ath": round(pivot_ath, 2),
+                "prior_ath": round(true_ath, 2),
                 "support_level": support_level,
                 "sma_20": sma_20,
                 "is_fresh": is_fresh,
                 "fresh_label": "Fresh ATH Breakout Today" if is_fresh else "Active ATH Setup",
                 "breakout_volume": int(latest_candle.get("volume", 0)),
-                "description": f"Testing lifetime All-Time High of ₹{pivot_ath:.2f} ({pct_vs_pivot:+.2f}%). Base support at ₹{support_level:.2f}."
+                "description": f"Testing lifetime All-Time High of ₹{true_ath:.2f} ({pct_vs_ath:+.2f}%). Base support at ₹{support_level:.2f}."
             }
         )
 
