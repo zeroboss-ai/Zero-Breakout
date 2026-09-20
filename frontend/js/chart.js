@@ -121,7 +121,7 @@ class BreakoutChart {
       const parent = this.canvas.parentElement;
       const rect = parent ? parent.getBoundingClientRect() : { width: 400, height: 280 };
       const width = rect.width || 400;
-      const height = 280;
+      const height = (parent && parent.clientHeight) ? parent.clientHeight : (rect.height || 280);
 
       this.canvas.width = width * dpr;
       this.canvas.height = height * dpr;

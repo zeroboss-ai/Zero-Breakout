@@ -42,6 +42,56 @@
           <div class="brand-subtitle">Catch every breakout.</div>
         </div>
       </div>
+
+      <!-- Desktop Navigation Bar (Visible on Desktop >= 1024px) -->
+      <nav class="desktop-nav-tabs">
+        <button class="desktop-nav-btn active" data-tab="scanner">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+          <span>Scanner</span>
+        </button>
+        <button class="desktop-nav-btn" data-tab="setup">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+          <span>Stock Setup</span>
+        </button>
+        <button class="desktop-nav-btn" data-tab="watchlist">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+          </svg>
+          <span>Watchlist</span>
+        </button>
+        <button class="desktop-nav-btn" data-tab="account">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+          <span>Account & Settings</span>
+        </button>
+        <a href="https://t.me/ZeroBreakout" target="_blank" rel="noopener noreferrer" class="desktop-nav-link tg-nav-link">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.13 7.19c-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27z"/>
+          </svg>
+          <span>Telegram Alerts</span>
+        </a>
+      </nav>
+
+      <!-- Desktop Header Actions -->
+      <div class="header-actions">
+        <span class="live-market-badge">
+          <span class="pulse-dot"></span> NSE Live EOD
+        </span>
+        <button id="desktopThemeBtn" class="btn-icon theme-toggle-btn" title="Toggle Theme">
+          <svg class="sun-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+          </svg>
+          <svg class="moon-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+          </svg>
+        </button>
+      </div>
     </header>
 
     <!-- ==================== TAB 1: SCANNER ==================== -->
@@ -77,119 +127,126 @@
 
     <!-- ==================== TAB 2: SETUP (STOCK DETAIL) ==================== -->
     <main id="tab-setup" class="tab-view">
-      <!-- Stock Header -->
-      <div class="setup-header">
-        <div class="setup-title-row">
-          <div class="setup-symbol-wrap">
-            <h1 id="setupSymbol" class="setup-symbol">TRENT</h1>
-            <span id="setupSector" class="setup-sector-tag">Retail / Consumer</span>
+      <div class="setup-desktop-layout">
+        <!-- Left Column: Stock Header & Interactive Chart -->
+        <div class="setup-col-left">
+          <!-- Stock Header -->
+          <div class="setup-header">
+            <div class="setup-title-row">
+              <div class="setup-symbol-wrap">
+                <h1 id="setupSymbol" class="setup-symbol">TRENT</h1>
+                <span id="setupSector" class="setup-sector-tag">Retail / Consumer</span>
+              </div>
+              <button id="setupStarBtn" class="btn-star" title="Save to Watchlist">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                </svg>
+              </button>
+            </div>
+            <div id="setupCompanyName" class="setup-company-name">Trent Limited</div>
+            <div class="setup-price-row">
+              <span id="setupPrice" class="setup-current-price">₹7,432.50</span>
+              <span id="setupChange" class="setup-price-change price-positive">+182.50 (+2.52%)</span>
+            </div>
+            <div class="setup-meta-bar">
+              <div class="meta-item">Market Cap: <b id="setupMcap">₹258k Cr</b></div>
+              <div class="meta-item">All-Time High: <b id="setupAth">₹7,320.0</b></div>
+            </div>
           </div>
-          <button id="setupStarBtn" class="btn-star" title="Save to Watchlist">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+
+          <!-- Chart Section -->
+          <section class="chart-section">
+            <div class="chart-controls">
+              <div class="range-selector">
+                <button class="range-btn" data-range="1M">1M</button>
+                <button class="range-btn" data-range="6M">6M</button>
+                <button class="range-btn active" data-range="1Y">1Y</button>
+                <button class="range-btn" data-range="3Y">3Y</button>
+                <button class="range-btn" data-range="5Y">5Y</button>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-line legend-sma20"></span> 20 SMA</span>
+                <span class="legend-item"><span class="legend-line legend-sma50"></span> 50 SMA</span>
+                <span class="legend-item"><span class="legend-line legend-pivot"></span> Pivot</span>
+              </div>
+            </div>
+            <div class="chart-canvas-container" id="chartCanvasContainer">
+              <div id="chartLoadingOverlay" class="chart-loading-overlay" style="display: none;">
+                <div class="spinner"></div>
+                <span id="chartLoadingText">Loading chart...</span>
+              </div>
+              <canvas id="candlestickChart"></canvas>
+            </div>
+          </section>
+        </div>
+
+        <!-- Right Column: Technical Stats & Gemini AI Breakdown -->
+        <div class="setup-col-right">
+          <!-- Breakout Stats Card -->
+          <section class="stats-card-section">
+            <div class="stats-card">
+              <div class="stats-card-header">
+                <span>TECHNICAL CHART STRUCTURE</span>
+                <span class="status-active-badge">ACTIVE SETUP</span>
+              </div>
+              <div class="stats-grid">
+                <div class="stat-box">
+                  <span class="stat-label">Pattern Type</span>
+                  <span id="statPatternType" class="stat-value">All-Time High Breakout</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-label">Breakout Pivot</span>
+                  <span id="statPivotPrice" class="stat-value">₹7,250.00</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-label">Base Support</span>
+                  <span id="statSupportLevel" class="stat-value">₹6,996.00</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-label">20-Day SMA</span>
+                  <span id="statSma20" class="stat-value">₹7,120.50</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-label">50-Day SMA</span>
+                  <span id="statSma50" class="stat-value">₹6,850.00</span>
+                </div>
+                <div class="stat-box">
+                  <span class="stat-label">% vs Pivot</span>
+                  <span id="statVsPivot" class="stat-value price-positive">+2.52%</span>
+                </div>
+                <div class="stat-desc-box">
+                  <span id="statDescription">Stock closed above previous resistance of ₹7,250.00. Prior resistance now acts as technical base support.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Gemini AI Technical Analysis -->
+          <section class="ai-card-section">
+            <div class="ai-card">
+              <div class="ai-card-header">
+                <div class="ai-header-left">
+                  <svg class="ai-sparkle-icon" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L14.4 7.6L20 10L14.4 12.4L12 18L9.6 12.4L4 10L9.6 7.6L12 2Z"></path>
+                  </svg>
+                  <span class="ai-title">Gemini AI Technical Breakdown</span>
+                </div>
+                <button id="aiRefreshBtn" class="btn-ai-refresh">Refresh</button>
+              </div>
+              <div id="aiAnalysisBody" class="ai-body">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </section>
+
+          <!-- Regulatory & Educational Disclaimer -->
+          <div class="sebi-disclaimer-box" style="margin-top: 16px;">
+            <svg class="disclaimer-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
-          </button>
-        </div>
-        <div id="setupCompanyName" class="setup-company-name">Trent Limited</div>
-        <div class="setup-price-row">
-          <span id="setupPrice" class="setup-current-price">₹7,432.50</span>
-          <span id="setupChange" class="setup-price-change price-positive">+182.50 (+2.52%)</span>
-        </div>
-        <div class="setup-meta-bar">
-          <div class="meta-item">Market Cap: <b id="setupMcap">₹258k Cr</b></div>
-          <div class="meta-item">All-Time High: <b id="setupAth">₹7,320.0</b></div>
-        </div>
-      </div>
-
-      <!-- Chart Section -->
-      <section class="chart-section">
-        <div class="chart-controls">
-          <div class="range-selector">
-            <button class="range-btn" data-range="1M">1M</button>
-            <button class="range-btn" data-range="6M">6M</button>
-            <button class="range-btn active" data-range="1Y">1Y</button>
-            <button class="range-btn" data-range="3Y">3Y</button>
-            <button class="range-btn" data-range="5Y">5Y</button>
-          </div>
-          <div class="chart-legend">
-            <span class="legend-item"><span class="legend-line legend-sma20"></span> 20 SMA</span>
-            <span class="legend-item"><span class="legend-line legend-sma50"></span> 50 SMA</span>
-            <span class="legend-item"><span class="legend-line legend-pivot"></span> Pivot</span>
+            <p><strong>Educational Disclaimer:</strong> ZeroBreakout is an automated algorithmic technical charting & pattern detection scanner terminal built strictly for educational, research, and technical analysis purposes. We are not a SEBI registered investment advisor and do not provide buy/sell recommendations or financial advice.</p>
           </div>
         </div>
-        <div class="chart-canvas-container" id="chartCanvasContainer">
-          <div id="chartLoadingOverlay" class="chart-loading-overlay" style="display: none;">
-            <div class="spinner"></div>
-            <span id="chartLoadingText">Loading chart...</span>
-          </div>
-          <canvas id="candlestickChart"></canvas>
-        </div>
-      </section>
-
-      <!-- Breakout Stats Card -->
-      <!-- Technical Chart Structure (SEBI Compliant Technical Metrics) -->
-      <section class="stats-card-section">
-        <div class="stats-card">
-          <div class="stats-card-header">
-            <span>TECHNICAL CHART STRUCTURE</span>
-            <span class="status-active-badge">ACTIVE SETUP</span>
-          </div>
-          <div class="stats-grid">
-            <div class="stat-box">
-              <span class="stat-label">Pattern Type</span>
-              <span id="statPatternType" class="stat-value">All-Time High Breakout</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">Breakout Pivot</span>
-              <span id="statPivotPrice" class="stat-value">₹7,250.00</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">Base Support</span>
-              <span id="statSupportLevel" class="stat-value">₹6,996.00</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">20-Day SMA</span>
-              <span id="statSma20" class="stat-value">₹7,120.50</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">50-Day SMA</span>
-              <span id="statSma50" class="stat-value">₹6,850.00</span>
-            </div>
-            <div class="stat-box">
-              <span class="stat-label">% vs Pivot</span>
-              <span id="statVsPivot" class="stat-value price-positive">+2.52%</span>
-            </div>
-            <div class="stat-desc-box">
-              <span id="statDescription">Stock closed above previous resistance of ₹7,250.00. Prior resistance now acts as technical base support.</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Gemini AI Technical Analysis -->
-      <section class="ai-card-section">
-        <div class="ai-card">
-          <div class="ai-card-header">
-            <div class="ai-header-left">
-              <svg class="ai-sparkle-icon" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L14.4 7.6L20 10L14.4 12.4L12 18L9.6 12.4L4 10L9.6 7.6L12 2Z"></path>
-              </svg>
-              <span class="ai-title">Gemini AI Technical Breakdown</span>
-            </div>
-            <button id="aiRefreshBtn" class="btn-ai-refresh">Refresh</button>
-          </div>
-          <div id="aiAnalysisBody" class="ai-body">
-            <!-- Dynamically populated -->
-          </div>
-        </div>
-      </section>
-
-      <!-- Regulatory & Educational Disclaimer -->
-      <div class="sebi-disclaimer-box">
-        <svg class="disclaimer-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-        <p><strong>Educational Disclaimer:</strong> ZeroBreakout is an automated algorithmic technical charting & pattern detection scanner terminal built strictly for educational, research, and technical analysis purposes. We are not a SEBI registered investment advisor and do not provide buy/sell recommendations or financial advice.</p>
       </div>
     </main>
 

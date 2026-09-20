@@ -21,7 +21,7 @@ function initApp() {
 
   // DOM Elements
   const tabs = document.querySelectorAll('.tab-view');
-  const navBtns = document.querySelectorAll('.nav-tab-btn');
+  const navBtns = document.querySelectorAll('.nav-tab-btn, .desktop-nav-btn');
   const filterChips = document.querySelectorAll('.filter-chip');
   const searchInput = document.getElementById('scannerSearch');
   const signalsListEl = document.getElementById('signalsList');
@@ -31,6 +31,19 @@ function initApp() {
   const aiRefreshBtn = document.getElementById('aiRefreshBtn');
   const manualSyncBtn = document.getElementById('manualSyncBtn');
   const themeToggle = document.getElementById('themeToggle');
+  const desktopThemeBtn = document.getElementById('desktopThemeBtn');
+
+  // Synchronize initial theme preference
+  const savedTheme = localStorage.getItem('theme') || localStorage.getItem('zb_theme');
+  if (savedTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const tv = themeToggle ? themeToggle.querySelector('.theme-val') : null;
+    if (tv) tv.textContent = 'Dark';
+  } else if (savedTheme === 'light') {
+    document.documentElement.removeAttribute('data-theme');
+    const tv = themeToggle ? themeToggle.querySelector('.theme-val') : null;
+    if (tv) tv.textContent = 'Light';
+  }
 
   // Initialize route and state on page load
   const pathname = window.location.pathname;
@@ -730,24 +743,31 @@ function initApp() {
   }
 
   // Dark / Light Theme Toggle
+  function handleThemeToggle() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('theme', 'light');
+      localStorage.setItem('zb_theme', 'light');
+      const tv = themeToggle ? themeToggle.querySelector('.theme-val') : null;
+      if (tv) tv.textContent = 'Light';
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+      localStorage.setItem('zb_theme', 'dark');
+      const tv = themeToggle ? themeToggle.querySelector('.theme-val') : null;
+      if (tv) tv.textContent = 'Dark';
+    }
+    if (state.chartInstance) {
+      state.chartInstance.render();
+    }
+  }
+
   if (themeToggle) {
-    themeToggle.addEventListener('click', () => {
-      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      if (isDark) {
-        document.documentElement.removeAttribute('data-theme');
-        localStorage.setItem('theme', 'light');
-        const tv = themeToggle.querySelector('.theme-val');
-        if (tv) tv.textContent = 'Light';
-      } else {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        localStorage.setItem('theme', 'dark');
-        const tv = themeToggle.querySelector('.theme-val');
-        if (tv) tv.textContent = 'Dark';
-      }
-      if (state.chartInstance) {
-        state.chartInstance.render();
-      }
-    });
+    themeToggle.addEventListener('click', handleThemeToggle);
+  }
+  if (desktopThemeBtn) {
+    desktopThemeBtn.addEventListener('click', handleThemeToggle);
   }
 
   // Native PWA App Install Action
