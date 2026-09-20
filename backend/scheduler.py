@@ -40,14 +40,50 @@ def run_daily_eod_pipeline():
         logger.error(f"Error executing daily EOD pipeline: {e}", exc_info=True)
         return {"error": str(e)}
 
+def run_premarket_pipeline():
+    """Broadcasts 8:45 AM IST Pre-Market Watchlist & Sector Radar to Telegram"""
+    logger.info("Executing 8:45 AM IST Pre-Market Radar Pipeline...")
+    try:
+        from .telegram_service import format_and_broadcast_premarket_radar
+        res = format_and_broadcast_premarket_radar()
+        logger.info(f"Pre-Market Radar Broadcast Result: {res}")
+        return res
+    except Exception as e:
+        logger.error(f"Error in Pre-Market Pipeline: {e}", exc_info=True)
+        return {"error": str(e)}
+
+def run_weekend_pipeline():
+    """Broadcasts Sunday 11:00 AM IST Weekend Market Deep-Dive to Telegram"""
+    logger.info("Executing Sunday 11:00 AM IST Weekend Deep-Dive Pipeline...")
+    try:
+        from .telegram_service import format_and_broadcast_weekend_digest
+        res = format_and_broadcast_weekend_digest()
+        logger.info(f"Weekend Deep-Dive Broadcast Result: {res}")
+        return res
+    except Exception as e:
+        logger.error(f"Error in Weekend Pipeline: {e}", exc_info=True)
+        return {"error": str(e)}
+
 def start_scheduler():
     """
     Initializes and starts APScheduler:
+    - Pre-Market Radar: 08:45 IST (03:15 UTC) Mon-Fri
     - Primary EOD Scan: 17:00 IST (5:00 PM IST / 11:30 UTC) Mon-Fri
     - Backup Confirmation Scan: 18:00 IST (6:00 PM IST / 12:30 UTC) Mon-Fri
+    - Weekend Review: 11:00 IST (05:30 UTC) Sunday
     """
     if not scheduler.running:
-        # Primary: 17:00 IST = 11:30 UTC
+        # 1. Pre-Market: 08:45 IST = 03:15 UTC Mon-Fri
+        trigger_premarket = CronTrigger(day_of_week="mon-fri", hour=3, minute=15, timezone="UTC")
+        scheduler.add_job(
+            run_premarket_pipeline,
+            trigger=trigger_premarket,
+            id="premarket_radar_845am",
+            name="Pre-Market Watchlist & Sector Radar (8:45 AM IST)",
+            replace_existing=True
+        )
+
+        # 2. Primary EOD: 17:00 IST = 11:30 UTC Mon-Fri
         trigger_primary = CronTrigger(day_of_week="mon-fri", hour=11, minute=30, timezone="UTC")
         scheduler.add_job(
             run_daily_eod_pipeline,
@@ -57,7 +93,7 @@ def start_scheduler():
             replace_existing=True
         )
 
-        # Backup: 18:00 IST = 12:30 UTC
+        # 3. Backup EOD: 18:00 IST = 12:30 UTC Mon-Fri
         trigger_backup = CronTrigger(day_of_week="mon-fri", hour=12, minute=30, timezone="UTC")
         scheduler.add_job(
             run_daily_eod_pipeline,
@@ -67,8 +103,18 @@ def start_scheduler():
             replace_existing=True
         )
 
+        # 4. Weekend Deep-Dive: 11:00 IST = 05:30 UTC Sunday
+        trigger_weekend = CronTrigger(day_of_week="sun", hour=5, minute=30, timezone="UTC")
+        scheduler.add_job(
+            run_weekend_pipeline,
+            trigger=trigger_weekend,
+            id="weekend_review_sunday_11am",
+            name="Weekend Market Review & Setup Index (Sunday 11:00 AM IST)",
+            replace_existing=True
+        )
+
         scheduler.start()
-        logger.info("Background daily EOD scheduler started successfully (runs at 5:00 PM & 6:00 PM IST Mon-Fri).")
+        logger.info("Background scheduler started successfully (Pre-Market 8:45 AM, EOD 5:00 PM & 6:00 PM, Sunday 11:00 AM IST).")
 
 def stop_scheduler():
     if scheduler.running:
