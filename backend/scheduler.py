@@ -113,8 +113,18 @@ def start_scheduler():
             replace_existing=True
         )
 
+        # 5. Continuous Self-Healing Sync (Every 30 mins)
+        scheduler.add_job(
+            sync_missing_bhavcopies,
+            trigger="interval",
+            minutes=30,
+            id="auto_catchup_sync_30m",
+            name="Self-Healing Multi-Day Bhavcopy Sync (30 min interval)",
+            replace_existing=True
+        )
+
         scheduler.start()
-        logger.info("Background scheduler started successfully (Pre-Market 8:45 AM, EOD 5:00 PM & 6:00 PM, Sunday 11:00 AM IST).")
+        logger.info("Background scheduler started successfully (Interval 30m, Pre-Market 8:45 AM, EOD 5:00 PM & 6:00 PM, Sunday 11:00 AM IST).")
 
 def stop_scheduler():
     if scheduler.running:

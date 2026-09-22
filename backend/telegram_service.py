@@ -49,31 +49,60 @@ def send_telegram_message(
 def format_and_broadcast_eod_alerts() -> Dict[str, Any]:
     """
     Generates an automated daily post-market breakout digest and broadcasts it to Telegram.
+    Syncs missing Bhavcopies first to guarantee fresh data for the latest trading session.
     """
+    from .data_fetcher import sync_missing_bhavcopies
     from .database import get_latest_signals, get_connection
     from datetime import timezone, timedelta
 
-    ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-    date_display = ist_now.strftime("%d %b %Y")
+    # 1. Pre-broadcast sync check: Ensure today's / latest Bhavcopy is downloaded
+    try:
+        sync_res = sync_missing_bhavcopies()
+        logger.info(f"Pre-broadcast catch-up sync completed: {sync_res}")
+    except Exception as sync_err:
+        logger.warning(f"Notice during pre-broadcast sync: {sync_err}")
 
-    # Fetch fresh signals
-    ath_signals = get_latest_signals(pattern_type="All-Time High Breakout", limit=5)
-    fth_signals = get_latest_signals(pattern_type="52-Week High Breakout", limit=5)
-    ipo_signals = get_latest_signals(pattern_type="IPO Breakout", limit=3)
+    conn = get_connection()
+    row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
+    latest_market_date = row["max_date"] if row and row["max_date"] else None
+    conn.close()
 
-    if not ath_signals and not fth_signals:
-        logger.info("No fresh breakout signals found for today's Telegram broadcast.")
-        return {"status": "skipped", "message": "No signals to broadcast."}
+    if not latest_market_date:
+        logger.warning("No price history available for Telegram broadcast.")
+        return {"status": "skipped", "message": "No price history available."}
+
+    # Format actual market session date
+    try:
+        d_obj = datetime.strptime(latest_market_date, "%Y-%m-%d")
+        date_display = d_obj.strftime("%d %b %Y")
+    except Exception:
+        date_display = latest_market_date
+
+    # Fetch signals matching the latest trading session
+    ath_signals = get_latest_signals(pattern_type="All-Time High Breakout", limit=12)
+    ath_fresh = [s for s in ath_signals if s.get("trigger_date") == latest_market_date or s.get("percent_vs_pivot", -99) >= -1.5]
+
+    fth_signals = get_latest_signals(pattern_type="52-Week High Breakout", limit=12)
+    fth_fresh = [s for s in fth_signals if s.get("trigger_date") == latest_market_date or s.get("percent_vs_pivot", -99) >= -1.5]
+
+    ipo_signals = get_latest_signals(pattern_type="IPO Breakout", limit=6)
+    ipo_fresh = [s for s in ipo_signals if s.get("trigger_date") == latest_market_date or s.get("percent_vs_pivot", -99) >= -1.5]
+
+    near_52w = get_latest_signals(pattern_type="Near 52-Week High", limit=6)
+
+    if not ath_fresh and not fth_fresh and not ipo_fresh and not near_52w:
+        logger.info("No active breakout signals found for today's Telegram broadcast.")
+        return {"status": "skipped", "message": "No active signals for latest session."}
 
     lines = [
         f"⚡ <b>ZeroBreakout Daily Market Digest</b> — <i>{date_display}</i>\n",
-        "Market Structure & Momentum Breakouts detected by algorithmic scanner:\n"
+        "EOD Market Structure & Momentum Breakouts detected by algorithmic scanner:\n"
     ]
 
     # 1. ATH Breakouts
-    if ath_signals:
+    if ath_fresh:
         lines.append("🚀 <b>ALL-TIME HIGH BREAKOUTS:</b>")
-        for s in ath_signals[:4]:
+        for s in ath_fresh[:4]:
             sym = s.get("symbol", "")
             name = s.get("company_name", sym)
             price = s.get("current_price", 0)
@@ -84,9 +113,9 @@ def format_and_broadcast_eod_alerts() -> Dict[str, Any]:
         lines.append("")
 
     # 2. 52-Week High Breakouts
-    if fth_signals:
+    if fth_fresh:
         lines.append("🔥 <b>52-WEEK HIGH BREAKOUTS:</b>")
-        for s in fth_signals[:4]:
+        for s in fth_fresh[:4]:
             sym = s.get("symbol", "")
             price = s.get("current_price", 0)
             chg = s.get("change_pct", 0)
@@ -95,14 +124,25 @@ def format_and_broadcast_eod_alerts() -> Dict[str, Any]:
         lines.append("")
 
     # 3. IPO Breakouts
-    if ipo_signals:
+    if ipo_fresh:
         lines.append("🌟 <b>FRESH IPO BREAKOUTS:</b>")
-        for s in ipo_signals[:3]:
+        for s in ipo_fresh[:3]:
             sym = s.get("symbol", "")
             price = s.get("current_price", 0)
             chg = s.get("change_pct", 0)
             sign = "+" if chg > 0 else ""
             lines.append(f"• <b>{sym}</b> — ₹{price:,.2f} (<code>{sign}{chg:.2f}%</code>) | <a href='https://www.zerobreakout.in/stock/{sym}'>Chart</a>")
+        lines.append("")
+
+    # 4. If fewer than 3 breakouts, show Near-Pivot Leaders
+    if len(ath_fresh) + len(fth_fresh) < 3 and near_52w:
+        lines.append("🎯 <b>PIVOT WATCHLIST (Near 52W / ATH Resistance):</b>")
+        for s in near_52w[:3]:
+            sym = s.get("symbol", "")
+            price = s.get("current_price", 0)
+            pivot = s.get("pivot_price", 0)
+            pct = s.get("percent_vs_pivot", 0)
+            lines.append(f"• <b>{sym}</b> — CMP ₹{price:,.2f} | Pivot ₹{pivot:,.2f} (<code>{pct:+.1f}% vs Pivot</code>)")
         lines.append("")
 
     lines.append("📊 <b>Explore full 1,110+ stock scanner:</b> https://www.zerobreakout.in")
