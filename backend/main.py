@@ -103,10 +103,38 @@ FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 async def health_check():
     return {"status": "ok", "app": "ZeroBreakout Terminal", "timestamp": datetime.utcnow().isoformat()}
 
+# ----------------- CONTINUOUS SELF-HEALING SYNC ----------------- #
+
+_last_auto_sync_check = 0.0
+
+def maybe_trigger_background_sync(background_tasks: Optional[BackgroundTasks] = None):
+    """
+    Opportunistically checks if today's / yesterday's Bhavcopy is missing and runs catch-up sync.
+    Throttled to run at most once every 10 minutes.
+    """
+    global _last_auto_sync_check
+    now = time.time()
+    if now - _last_auto_sync_check < 600:
+        return
+    _last_auto_sync_check = now
+
+    def _do_sync():
+        try:
+            from .data_fetcher import sync_missing_bhavcopies
+            sync_missing_bhavcopies()
+        except Exception as e:
+            logger.warning(f"Background opportunistic sync notice: {e}")
+
+    if background_tasks:
+        background_tasks.add_task(_do_sync)
+    else:
+        threading.Thread(target=_do_sync, daemon=True).start()
+
 # ----------------- API ENDPOINTS ----------------- #
 
 @app.get("/api/signals")
 async def get_signals(
+    background_tasks: BackgroundTasks,
     pattern: Optional[str] = Query(None, max_length=100, description="Filter by pattern type or 'all'"),
     search: Optional[str] = Query(None, max_length=100, description="Search by symbol or company name"),
     limit: int = Query(150, ge=1, le=500)
@@ -115,6 +143,7 @@ async def get_signals(
     Returns precomputed signals from the signals table.
     No pattern computation on page load — instantaneous response!
     """
+    maybe_trigger_background_sync(background_tasks)
     try:
         clean_pattern = str(pattern).strip() if pattern else None
         clean_search = str(search).strip() if search else None
