@@ -562,6 +562,34 @@ async def get_scanner_stats():
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
+    @app.get("/.well-known/assetlinks.json")
+    async def serve_assetlinks():
+        """
+        Serves Android Digital Asset Links file for Play Store Trusted Web Activity (TWA) verification.
+        Always returns application/json, never HTML.
+        """
+        assetlinks_path = os.path.join(FRONTEND_DIR, ".well-known", "assetlinks.json")
+        if os.path.isfile(assetlinks_path):
+            return FileResponse(
+                assetlinks_path,
+                media_type="application/json",
+                headers={"Cache-Control": "no-cache"}
+            )
+        return JSONResponse(
+            content=[
+                {
+                    "relation": ["delegate_permission/common.handle_all_urls"],
+                    "target": {
+                        "namespace": "android_app",
+                        "package_name": "in.zerobreakout.twa",
+                        "sha256_cert_fingerprints": []
+                    }
+                }
+            ],
+            media_type="application/json",
+            headers={"Cache-Control": "no-cache"}
+        )
+
     @app.get("/manifest.json")
     async def serve_manifest():
         return FileResponse(

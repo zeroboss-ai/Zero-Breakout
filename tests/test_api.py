@@ -93,6 +93,16 @@ def run_integration_tests():
     stats = resp_stats.json()
     print(f"   [OK] Tracked Stocks: {stats['total_stocks_tracked']}, Active Signals: {stats['total_active_signals']}")
 
+    print("\n10. Testing GET /.well-known/assetlinks.json (TWA / Play Store)...")
+    resp_al = client.get("/.well-known/assetlinks.json")
+    assert resp_al.status_code == 200
+    assert "application/json" in resp_al.headers.get("content-type", "")
+    al_data = resp_al.json()
+    assert isinstance(al_data, list)
+    assert len(al_data) > 0
+    assert al_data[0]["target"]["namespace"] == "android_app"
+    print(f"   [OK] Digital Asset Links served correctly with Content-Type application/json")
+
     print("\n==========================================")
     print("ALL INTEGRATION TESTS PASSED SUCCESSFULLY!")
     print("==========================================")
