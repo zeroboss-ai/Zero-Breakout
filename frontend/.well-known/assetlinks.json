@@ -1,10 +1,1 @@
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "in.zerobreakout.twa",
-      "sha256_cert_fingerprints": []
-    }
-  }
-]
+[{"relation": ["delegate_permission/common.handle_all_urls"], "target": {"namespace": "android_app", "package_name": "in.zerobreakout.www.twa", "sha256_cert_fingerprints": ["F3:11:3D:45:F2:9D:77:90:24:39:E4:9C:08:EB:64:04:C6:C1:4F:2E:37:3E:C3:F5:50:D6:17:58:01:5C:E8:0B"]}}]
