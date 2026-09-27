@@ -67,6 +67,15 @@ app = FastAPI(
 # Security Headers Middleware
 @app.middleware("http")
 async def add_security_headers(request, call_next):
+    # Fully exempt /.well-known from all security restrictions and CSP
+    if request.url.path.startswith("/.well-known/"):
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
     response = await call_next(request)
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -641,6 +650,7 @@ if os.path.exists(FRONTEND_DIR):
         """
         robots_txt = """User-agent: *
 Allow: /
+Allow: /.well-known/
 Allow: /stock/
 Allow: /about
 Allow: /privacy
