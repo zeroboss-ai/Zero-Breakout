@@ -602,29 +602,46 @@ async def subscribe_push_notifications(req: PushSubscribeRequest):
     """
     Registers a browser/app push notification subscription.
     """
-    success = register_subscription({
-        "endpoint": req.endpoint,
-        "keys": req.keys
-    }, user_id=req.userId)
-    if not success:
-        raise HTTPException(status_code=400, detail="Invalid push subscription payload")
-    return {"status": "success", "message": "Subscribed to ZeroBreakout Breakout Alerts"}
+    try:
+        success = register_subscription({
+            "endpoint": req.endpoint,
+            "keys": req.keys
+        }, user_id=req.userId)
+        if not success:
+            raise HTTPException(status_code=400, detail="Invalid push subscription payload")
+        return {"status": "success", "message": "Subscribed to ZeroBreakout Breakout Alerts"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error subscribing push: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 @app.post("/api/push/unsubscribe")
 async def unsubscribe_push_notifications(req: PushUnsubscribeRequest):
     """
     Unregisters a push subscription.
     """
-    unregister_subscription(req.endpoint)
-    return {"status": "success", "message": "Unsubscribed from push notifications"}
+    try:
+        unregister_subscription(req.endpoint)
+        return {"status": "success", "message": "Unsubscribed from push notifications"}
+    except Exception as e:
+        logger.error(f"Error unsubscribing push: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 @app.post("/api/push/test")
-async def test_push_broadcast(req: PushTestRequest):
+async def test_push_broadcast(req: Optional[PushTestRequest] = None):
     """
     Broadcasts a test notification to all subscribed app users.
     """
-    res = broadcast_push(title=req.title, body=req.body, url=req.url)
-    return res
+    try:
+        title = req.title if req and req.title else "⚡ ZeroBreakout Alert"
+        body = req.body if req and req.body else "Push notifications are active on your device!"
+        url = req.url if req and req.url else "/"
+        res = broadcast_push(title=title, body=body, url=url)
+        return {"status": "success", "delivered": res.get("delivered", 0), "total": res.get("total", 0), "detail": res}
+    except Exception as e:
+        logger.error(f"Error in test_push_broadcast: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 @app.post("/api/admin/trigger-broadcast-630pm")
 async def admin_trigger_evening_broadcast(admin_token: Optional[str] = Query(None)):
