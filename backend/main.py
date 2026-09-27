@@ -21,8 +21,16 @@ from .database import (
     get_connection
 )
 from .seed_data import seed_database_if_empty
-from .scheduler import start_scheduler, stop_scheduler, run_daily_eod_pipeline
+from .scheduler import start_scheduler, stop_scheduler, run_evening_eod_broadcast, run_daily_eod_data_sync
 from .gemini_service import get_gemini_analysis
+from .push_service import (
+    get_vapid_public_key,
+    register_subscription,
+    unregister_subscription,
+    broadcast_push,
+    send_eod_push_notification,
+    send_premarket_push_notification
+)
 from .seo_renderer import generate_homepage_html, generate_stock_ssr_html, generate_sitemap_xml
 import threading
 
@@ -565,6 +573,66 @@ async def get_scanner_stats():
         "total_active_signals": len(signals),
         "pattern_distribution": pattern_counts
     }
+
+# ----------------- WEB & APP PUSH NOTIFICATION ENDPOINTS ----------------- #
+
+class PushSubscribeRequest(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2000)
+    keys: Dict[str, str]
+    userId: Optional[str] = Field(None, max_length=120)
+
+class PushUnsubscribeRequest(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2000)
+
+class PushTestRequest(BaseModel):
+    title: Optional[str] = "⚡ ZeroBreakout Test Alert"
+    body: Optional[str] = "Live breakout alerts are now enabled on your device!"
+    url: Optional[str] = "/"
+
+@app.get("/api/push/public-key")
+async def get_push_public_key():
+    """
+    Returns VAPID public key for frontend Web Push subscriptions.
+    """
+    pub_key = get_vapid_public_key()
+    return {"publicKey": pub_key}
+
+@app.post("/api/push/subscribe")
+async def subscribe_push_notifications(req: PushSubscribeRequest):
+    """
+    Registers a browser/app push notification subscription.
+    """
+    success = register_subscription({
+        "endpoint": req.endpoint,
+        "keys": req.keys
+    }, user_id=req.userId)
+    if not success:
+        raise HTTPException(status_code=400, detail="Invalid push subscription payload")
+    return {"status": "success", "message": "Subscribed to ZeroBreakout Breakout Alerts"}
+
+@app.post("/api/push/unsubscribe")
+async def unsubscribe_push_notifications(req: PushUnsubscribeRequest):
+    """
+    Unregisters a push subscription.
+    """
+    unregister_subscription(req.endpoint)
+    return {"status": "success", "message": "Unsubscribed from push notifications"}
+
+@app.post("/api/push/test")
+async def test_push_broadcast(req: PushTestRequest):
+    """
+    Broadcasts a test notification to all subscribed app users.
+    """
+    res = broadcast_push(title=req.title, body=req.body, url=req.url)
+    return res
+
+@app.post("/api/admin/trigger-broadcast-630pm")
+async def admin_trigger_evening_broadcast(admin_token: Optional[str] = Query(None)):
+    """
+    Admin on-demand trigger for the consolidated 6:30 PM Telegram & App Push broadcast.
+    """
+    res = run_evening_eod_broadcast()
+    return {"status": "success", "results": res}
 
 # ----------------- FRONTEND STATIC SERVING & SEO ROUTES ----------------- #
 
