@@ -807,9 +807,12 @@ function initApp() {
   // App Breakout Push Notifications Controller
   const pushNotificationItem = document.getElementById('pushNotificationItem');
   const pushStatusBadge = document.getElementById('pushStatusBadge');
+  const pushPromptBanner = document.getElementById('pushPromptBanner');
+  const ppbEnableBtn = document.getElementById('ppbEnableBtn');
+  const ppbDismissBtn = document.getElementById('ppbDismissBtn');
 
   async function checkPushNotificationStatus() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       if (pushStatusBadge) {
         pushStatusBadge.textContent = 'Not Supported';
         pushStatusBadge.style.color = '#94A3B8';
@@ -826,11 +829,21 @@ function initApp() {
           pushStatusBadge.style.background = 'rgba(0, 179, 134, 0.15)';
           pushStatusBadge.style.color = 'var(--green-gain)';
         }
+        if (pushPromptBanner) pushPromptBanner.style.display = 'none';
       } else {
         if (pushStatusBadge) {
           pushStatusBadge.textContent = 'Enable →';
           pushStatusBadge.style.background = 'rgba(56, 126, 209, 0.1)';
           pushStatusBadge.style.color = 'var(--accent-blue)';
+        }
+        
+        // Show prompt banner on scanner if user hasn't decided or dismissed recently
+        const dismissedTime = parseInt(localStorage.getItem('zb_push_dismissed') || '0', 10);
+        const isRecentlyDismissed = (Date.now() - dismissedTime) < (7 * 86400000); // 7 days
+        if (Notification.permission === 'default' && !isRecentlyDismissed && pushPromptBanner) {
+          setTimeout(() => {
+            pushPromptBanner.style.display = 'flex';
+          }, 1200);
         }
       }
     } catch (e) {
@@ -838,65 +851,86 @@ function initApp() {
     }
   }
 
-  if (pushNotificationItem) {
-    pushNotificationItem.addEventListener('click', async () => {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-        showToast('Push Notifications are not supported by this browser.');
-        return;
-      }
+  async function enablePushNotifications(isFromAccount = false) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      showToast('Push Notifications are not supported by this browser.');
+      return false;
+    }
 
-      if (Notification.permission === 'denied') {
-        showToast('⚠️ Notifications are blocked in browser settings. Please allow notifications for this site.');
-        return;
-      }
+    if (Notification.permission === 'denied') {
+      showToast('⚠️ Notifications are blocked in browser settings. Please allow notifications for this site in site settings.');
+      return false;
+    }
 
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        let sub = await reg.pushManager.getSubscription();
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
 
-        if (sub && Notification.permission === 'granted') {
+      if (sub && Notification.permission === 'granted') {
+        if (isFromAccount) {
           showToast('🔔 Sending test breakout alert to your device...');
           await API.sendTestPush();
-          return;
         }
-
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          showToast('Notification permission was not granted.');
-          return;
-        }
-
-        const { publicKey } = await API.getPushPublicKey();
-        if (!publicKey) {
-          throw new Error('Push service configuration unavailable');
-        }
-
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey)
-        });
-
-        const auth = getUserAuth();
-        await API.subscribePush(sub, auth?.email || null);
-
-        if (pushStatusBadge) {
-          pushStatusBadge.textContent = 'Active ✓';
-          pushStatusBadge.style.background = 'rgba(0, 179, 134, 0.15)';
-          pushStatusBadge.style.color = 'var(--green-gain)';
-        }
-
-        showToast('✓ App Breakout Notifications Enabled!');
-        setTimeout(() => {
-          API.sendTestPush().catch(console.warn);
-        }, 800);
-      } catch (err) {
-        console.error('Push subscription error:', err);
-        showToast('Notification setup: ' + (err.message || 'Failed to subscribe'));
+        if (pushPromptBanner) pushPromptBanner.style.display = 'none';
+        return true;
       }
-    });
 
-    checkPushNotificationStatus();
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Notification permission was not granted.');
+        return false;
+      }
+
+      const { publicKey } = await API.getPushPublicKey();
+      if (!publicKey) {
+        throw new Error('Push service configuration unavailable');
+      }
+
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+
+      const auth = getUserAuth();
+      await API.subscribePush(sub, auth?.email || null);
+
+      if (pushStatusBadge) {
+        pushStatusBadge.textContent = 'Active ✓';
+        pushStatusBadge.style.background = 'rgba(0, 179, 134, 0.15)';
+        pushStatusBadge.style.color = 'var(--green-gain)';
+      }
+      if (pushPromptBanner) {
+        pushPromptBanner.style.display = 'none';
+      }
+
+      showToast('✓ App Breakout Notifications Enabled!');
+      setTimeout(() => {
+        API.sendTestPush().catch(console.warn);
+      }, 600);
+      return true;
+    } catch (err) {
+      console.error('Push subscription error:', err);
+      showToast('Notification notice: ' + (err.message || 'Failed to activate'));
+      return false;
+    }
   }
+
+  if (pushNotificationItem) {
+    pushNotificationItem.addEventListener('click', () => enablePushNotifications(true));
+  }
+
+  if (ppbEnableBtn) {
+    ppbEnableBtn.addEventListener('click', () => enablePushNotifications(false));
+  }
+
+  if (ppbDismissBtn) {
+    ppbDismissBtn.addEventListener('click', () => {
+      if (pushPromptBanner) pushPromptBanner.style.display = 'none';
+      localStorage.setItem('zb_push_dismissed', Date.now().toString());
+    });
+  }
+
+  checkPushNotificationStatus();
 
   // Header Live Data Sync
   const headerLiveSyncBtn = document.getElementById('headerLiveSyncBtn');
