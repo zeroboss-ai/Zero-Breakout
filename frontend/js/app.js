@@ -792,6 +792,112 @@ function initApp() {
     });
   }
 
+  // Base64 helper for VAPID subscription
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  // App Breakout Push Notifications Controller
+  const pushNotificationItem = document.getElementById('pushNotificationItem');
+  const pushStatusBadge = document.getElementById('pushStatusBadge');
+
+  async function checkPushNotificationStatus() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (pushStatusBadge) {
+        pushStatusBadge.textContent = 'Not Supported';
+        pushStatusBadge.style.color = '#94A3B8';
+      }
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub && Notification.permission === 'granted') {
+        if (pushStatusBadge) {
+          pushStatusBadge.textContent = 'Active ✓';
+          pushStatusBadge.style.background = 'rgba(0, 179, 134, 0.15)';
+          pushStatusBadge.style.color = 'var(--green-gain)';
+        }
+      } else {
+        if (pushStatusBadge) {
+          pushStatusBadge.textContent = 'Enable →';
+          pushStatusBadge.style.background = 'rgba(56, 126, 209, 0.1)';
+          pushStatusBadge.style.color = 'var(--accent-blue)';
+        }
+      }
+    } catch (e) {
+      console.warn('Push status check notice:', e);
+    }
+  }
+
+  if (pushNotificationItem) {
+    pushNotificationItem.addEventListener('click', async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        showToast('Push Notifications are not supported by this browser.');
+        return;
+      }
+
+      if (Notification.permission === 'denied') {
+        showToast('⚠️ Notifications are blocked in browser settings. Please allow notifications for this site.');
+        return;
+      }
+
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+
+        if (sub && Notification.permission === 'granted') {
+          showToast('🔔 Sending test breakout alert to your device...');
+          await API.sendTestPush();
+          return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          showToast('Notification permission was not granted.');
+          return;
+        }
+
+        const { publicKey } = await API.getPushPublicKey();
+        if (!publicKey) {
+          throw new Error('Push service configuration unavailable');
+        }
+
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+
+        const auth = getUserAuth();
+        await API.subscribePush(sub, auth?.email || null);
+
+        if (pushStatusBadge) {
+          pushStatusBadge.textContent = 'Active ✓';
+          pushStatusBadge.style.background = 'rgba(0, 179, 134, 0.15)';
+          pushStatusBadge.style.color = 'var(--green-gain)';
+        }
+
+        showToast('✓ App Breakout Notifications Enabled!');
+        setTimeout(() => {
+          API.sendTestPush().catch(console.warn);
+        }, 800);
+      } catch (err) {
+        console.error('Push subscription error:', err);
+        showToast('Notification setup: ' + (err.message || 'Failed to subscribe'));
+      }
+    });
+
+    checkPushNotificationStatus();
+  }
+
   // Header Live Data Sync
   const headerLiveSyncBtn = document.getElementById('headerLiveSyncBtn');
   const liveStatusText = document.getElementById('liveStatusText');

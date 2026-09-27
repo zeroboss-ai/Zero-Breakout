@@ -335,8 +335,8 @@
           </div>
           <div class="clock-metrics-grid">
             <div class="clock-metric-box">
-              <span class="cm-label">Auto-Scan Clock</span>
-              <span class="cm-val" style="color: #00B386;">5:00 PM IST (Mon-Fri)</span>
+              <span class="cm-label">EOD Broadcast</span>
+              <span class="cm-val" style="color: #00B386;">6:30 PM IST (Mon-Fri)</span>
             </div>
             <div class="clock-metric-box">
               <span class="cm-label">Institutional Universe</span>
@@ -392,8 +392,18 @@
           </div>
         </div>
 
-        <!-- 4. APP INSTALL & THEME SETTINGS -->
+        <!-- 4. APP NOTIFICATIONS, INSTALL & THEME SETTINGS -->
         <div class="settings-group">
+          <div class="settings-item" id="pushNotificationItem" style="cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 16px;">🔔</span>
+              <div>
+                <span style="font-weight: 600; display: block;">App Breakout Notifications</span>
+                <span style="font-size: 11px; color: var(--text-secondary); display: block;">Instant 6:30 PM & 8:45 AM alerts on lock screen</span>
+              </div>
+            </div>
+            <span id="pushStatusBadge" class="badge-eod-sync" style="background: rgba(0, 179, 134, 0.1); color: var(--green-gain); font-weight: 700;">Enable →</span>
+          </div>
           <div class="settings-item" id="pwaInstallItem">
             <div style="display: flex; align-items: center; gap: 10px;">
               <span style="font-size: 16px;">📲</span>
@@ -458,7 +468,7 @@
             </div>
             <div class="metric-col">
               <span class="m-label">Auto Scheduler</span>
-              <span class="m-val" style="color: var(--green-gain);">5:00 PM IST</span>
+              <span class="m-val" style="color: var(--green-gain);">6:30 PM IST</span>
             </div>
           </div>
 
@@ -613,12 +623,12 @@
   <!-- Firebase SDKs (Google CDN) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="/static/js/firebase-auth.js?v=5.2.0"></script>
+  <script src="/static/js/firebase-auth.js?v=5.3.0"></script>
 
   <!-- App Scripts with Cache Busting -->
-  <script src="/static/js/api.js?v=5.2.0"></script>
-  <script src="/static/js/chart.js?v=5.2.0"></script>
-  <script src="/static/js/app.js?v=5.2.0"></script>
+  <script src="/static/js/api.js?v=5.3.0"></script>
+  <script src="/static/js/chart.js?v=5.3.0"></script>
+  <script src="/static/js/app.js?v=5.3.0"></script>
 
   <!-- PWA Service Worker & Install Controller -->
   <script>
