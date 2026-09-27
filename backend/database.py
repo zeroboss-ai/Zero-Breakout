@@ -94,6 +94,18 @@ def init_db():
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist (user_id);")
 
+    # 5. Push Notification Subscriptions table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+        endpoint TEXT PRIMARY KEY,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        user_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
     conn.commit()
     conn.close()
 
@@ -400,3 +412,50 @@ def get_all_active_symbols(min_mcap_cr: float = 2000.0) -> List[Dict[str, Any]]:
     rows = conn.execute("SELECT symbol, company_name, sector, market_cap_cr, all_time_high, ath_date, listing_date FROM stocks WHERE is_active = 1 AND market_cap_cr >= ?", (min_mcap_cr,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def save_push_subscription(endpoint: str, p256dh: str, auth: str, user_id: Optional[str] = None) -> bool:
+    """Saves or updates a Web Push subscription in the database."""
+    conn = get_connection()
+    now_str = datetime.now().isoformat()
+    try:
+        with conn:
+            conn.execute("""
+            INSERT INTO push_subscriptions (endpoint, p256dh, auth, user_id, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(endpoint) DO UPDATE SET
+                p256dh=excluded.p256dh,
+                auth=excluded.auth,
+                user_id=COALESCE(excluded.user_id, push_subscriptions.user_id),
+                updated_at=excluded.updated_at;
+            """, (endpoint, p256dh, auth, user_id, now_str))
+        return True
+    finally:
+        conn.close()
+
+def get_all_push_subscriptions() -> List[Dict[str, Any]]:
+    """Retrieves all active push subscriptions."""
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT endpoint, p256dh, auth, user_id, created_at FROM push_subscriptions").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+def delete_push_subscription(endpoint: str) -> bool:
+    """Deletes an invalid or expired push subscription."""
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
+        return True
+    finally:
+        conn.close()
+
+def is_push_subscribed(endpoint: str) -> bool:
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT 1 FROM push_subscriptions WHERE endpoint = ?", (endpoint,)).fetchone()
+        return bool(row)
+    finally:
+        conn.close()
+
