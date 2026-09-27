@@ -176,22 +176,25 @@ const API = {
   },
 
   async sendTestPush() {
-    const resp = await fetch(`${this.baseUrl}/api/push/test`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: '⚡ ZeroBreakout Alert',
-        body: 'Push notifications are successfully active on your device!'
-      })
-    });
-    let data;
     try {
-      data = await resp.json();
-    } catch (e) {
-      throw new Error('Server returned invalid response');
+      const resp = await fetch(`${this.baseUrl}/api/push/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '⚡ ZeroBreakout Alert',
+          body: 'Push notifications are successfully active on your device!'
+        })
+      });
+      let data = {};
+      try {
+        data = await resp.json();
+      } catch (e) {
+        data = { status: resp.ok ? 'success' : 'error' };
+      }
+      return data;
+    } catch (err) {
+      return { status: 'notice', message: err.message };
     }
-    if (!resp.ok) throw new Error(data.detail || data.message || 'Test notification failed');
-    return data;
   }
 };
 
