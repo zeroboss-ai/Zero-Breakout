@@ -25,7 +25,7 @@
   <link rel="shortcut icon" href="/static/favicon.png?v=3.8.0">
 
   <!-- Styles & Fonts -->
-  <link rel="stylesheet" href="/static/css/style.css?v=5.2.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=5.4.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -110,6 +110,21 @@
 
     <!-- ==================== TAB 1: SCANNER ==================== -->
     <main id="tab-scanner" class="tab-view active">
+      <!-- Notification Permission Banner (Prompt on first visit / Scanner screen) -->
+      <div id="pushPromptBanner" class="push-prompt-banner" style="display: none;">
+        <div class="ppb-left">
+          <div class="ppb-icon">🔔</div>
+          <div class="ppb-text">
+            <h4>Get Breakout Alerts on Your Phone</h4>
+            <p>Instant lock-screen alerts for 6:30 PM breakouts & 8:45 AM pre-market radar.</p>
+          </div>
+        </div>
+        <div class="ppb-actions">
+          <button id="ppbEnableBtn" class="btn-ppb-enable">⚡ Enable Alerts</button>
+          <button id="ppbDismissBtn" class="btn-ppb-dismiss" title="Dismiss">✕</button>
+        </div>
+      </div>
+
       <!-- Search Bar -->
       <div class="scanner-search-box">
         <div class="search-input-wrapper">
@@ -626,9 +641,9 @@
   <script src="/static/js/firebase-auth.js?v=5.3.0"></script>
 
   <!-- App Scripts with Cache Busting -->
-  <script src="/static/js/api.js?v=5.3.0"></script>
-  <script src="/static/js/chart.js?v=5.3.0"></script>
-  <script src="/static/js/app.js?v=5.3.0"></script>
+  <script src="/static/js/api.js?v=5.4.0"></script>
+  <script src="/static/js/chart.js?v=5.4.0"></script>
+  <script src="/static/js/app.js?v=5.4.0"></script>
 
   <!-- PWA Service Worker & Install Controller -->
   <script>

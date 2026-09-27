@@ -32,30 +32,38 @@ from .database import (
 
 logger = logging.getLogger("ZeroBreakout.PushService")
 
-VAPID_FILE = os.path.join(DATA_DIR, "vapid_keys.json")
+VAPID_PEM_PATH = os.path.join(DATA_DIR, "vapid_private.pem")
+VAPID_PUB_PATH = os.path.join(DATA_DIR, "vapid_public.txt")
 VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "mailto:zerobossai@gmail.com")
 
 def _init_vapid_keys():
-    """Loads existing VAPID keys or creates a persistent EC keypair."""
+    """Loads existing VAPID keys or creates a persistent EC keypair files."""
     ensure_data_dir()
     
-    # 1. Check environment variables first
+    # 1. Environment variables check
     env_pub = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
     env_priv = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
     if env_pub and env_priv:
-        return {"public_key": env_pub, "private_key": env_priv}
-
-    # 2. Check local persistent key file
-    if os.path.isfile(VAPID_FILE):
         try:
-            with open(VAPID_FILE, "r", encoding="utf-8") as f:
-                keys = json.load(f)
-                if keys.get("public_key") and keys.get("private_key"):
-                    return keys
+            with open(VAPID_PEM_PATH, "w", encoding="utf-8") as f:
+                f.write(env_priv)
+            with open(VAPID_PUB_PATH, "w", encoding="utf-8") as f:
+                f.write(env_pub)
+            return env_pub
         except Exception as e:
-            logger.warning(f"Error reading {VAPID_FILE}: {e}")
+            logger.warning(f"Error writing env VAPID keys: {e}")
 
-    # 3. Generate new EC SECP256R1 VAPID keypair if cryptography is available
+    # 2. Check local persistent PEM & public files
+    if os.path.isfile(VAPID_PEM_PATH) and os.path.isfile(VAPID_PUB_PATH):
+        try:
+            with open(VAPID_PUB_PATH, "r", encoding="utf-8") as f:
+                pub = f.read().strip()
+            if pub and len(pub) > 20:
+                return pub
+        except Exception as e:
+            logger.warning(f"Error reading VAPID files: {e}")
+
+    # 3. Generate new persistent EC SECP256R1 VAPID keypair
     if HAS_CRYPTO:
         try:
             curve = ec.SECP256R1()
@@ -74,27 +82,31 @@ def _init_vapid_keys():
                 encryption_algorithm=serialization.NoEncryption()
             ).decode('utf-8')
 
-            keys = {"public_key": b64_pub, "private_key": priv_pem}
-            with open(VAPID_FILE, "w", encoding="utf-8") as f:
-                json.dump(keys, f, indent=2)
+            with open(VAPID_PEM_PATH, "w", encoding="utf-8") as f:
+                f.write(priv_pem)
+            with open(VAPID_PUB_PATH, "w", encoding="utf-8") as f:
+                f.write(b64_pub)
 
-            logger.info("Generated and saved new persistent VAPID keypair.")
-            return keys
+            logger.info("Generated and saved new persistent VAPID keypair files.")
+            return b64_pub
         except Exception as e:
             logger.error(f"Failed to generate VAPID keypair: {e}")
 
-    return {"public_key": "", "private_key": ""}
+    return ""
 
-_VAPID = _init_vapid_keys()
+_PUBLIC_KEY = _init_vapid_keys()
 
 def get_vapid_public_key() -> str:
     """Returns the VAPID public key string for frontend Web Push subscriptions."""
-    return _VAPID.get("public_key", "")
+    global _PUBLIC_KEY
+    if not _PUBLIC_KEY:
+        _PUBLIC_KEY = _init_vapid_keys()
+    return _PUBLIC_KEY
 
 def register_subscription(sub_data: Dict[str, Any], user_id: Optional[str] = None) -> bool:
     """
     Saves a subscription object from the frontend navigator.serviceWorker.pushManager.
-    Expected sub_data: {"endpoint": "...", "keys": {"p256dh": "...", "auth": "..."}}
+    Accepts keys as dict with p256dh and auth.
     """
     endpoint = sub_data.get("endpoint")
     keys = sub_data.get("keys", {})
@@ -102,7 +114,7 @@ def register_subscription(sub_data: Dict[str, Any], user_id: Optional[str] = Non
     auth = keys.get("auth")
 
     if not endpoint or not p256dh or not auth:
-        logger.warning("Invalid subscription data received for Web Push.")
+        logger.warning(f"Invalid subscription payload: endpoint={bool(endpoint)}, p256dh={bool(p256dh)}, auth={bool(auth)}")
         return False
 
     return save_push_subscription(endpoint=endpoint, p256dh=p256dh, auth=auth, user_id=user_id)
@@ -127,10 +139,9 @@ def broadcast_push(
         logger.warning("WebPush library not installed. Skipping push broadcast.")
         return {"status": "skipped", "message": "pywebpush not installed on environment"}
 
-    private_key = _VAPID.get("private_key")
-    if not private_key:
-        logger.warning("Cannot broadcast push: VAPID private key is missing.")
-        return {"status": "error", "message": "VAPID key not configured"}
+    if not os.path.isfile(VAPID_PEM_PATH):
+        logger.warning(f"Cannot broadcast push: VAPID private key file missing at {VAPID_PEM_PATH}")
+        return {"status": "error", "message": "VAPID key file missing"}
 
     subscriptions = get_all_push_subscriptions()
     if not subscriptions:
@@ -167,7 +178,7 @@ def broadcast_push(
             webpush(
                 subscription_info=sub_info,
                 data=payload,
-                vapid_private_key=private_key,
+                vapid_private_key=VAPID_PEM_PATH,
                 vapid_claims=vapid_claims,
                 ttl=86400 # 24 hours
             )
@@ -181,10 +192,10 @@ def broadcast_push(
                 cleaned += 1
                 logger.info(f"Purged expired push endpoint: {sub['endpoint'][:40]}...")
             else:
-                logger.warning(f"WebPush error ({status_code}): {ex}")
+                logger.warning(f"WebPush notice ({status_code}): {ex}")
         except Exception as e:
             failed += 1
-            logger.warning(f"Unexpected WebPush exception: {e}")
+            logger.warning(f"WebPush dispatch exception: {e}")
 
     logger.info(f"Push broadcast '{title}': delivered={delivered}, failed={failed}, cleaned={cleaned}")
     return {"status": "ok", "delivered": delivered, "failed": failed, "total": len(subscriptions)}

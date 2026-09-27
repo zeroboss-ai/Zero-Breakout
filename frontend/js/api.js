@@ -117,25 +117,52 @@ const API = {
 
   async getPushPublicKey() {
     const resp = await fetch(`${this.baseUrl}/api/push/public-key`);
-    if (!resp.ok) throw new Error('Failed to fetch push public key');
+    if (!resp.ok) {
+      let errText = 'Failed to fetch push public key';
+      try { const d = await resp.json(); errText = d.detail || errText; } catch(e) {}
+      throw new Error(errText);
+    }
     return await resp.json();
   },
 
   async subscribePush(subscription, userId = null) {
+    const subJson = (typeof subscription.toJSON === 'function') ? subscription.toJSON() : subscription;
+    
+    // Extract base64 keys safely
+    let p256dh = subJson.keys?.p256dh || '';
+    let auth = subJson.keys?.auth || '';
+    
+    if (!p256dh && subscription.getKey) {
+      const rawP256 = subscription.getKey('p256dh');
+      if (rawP256) p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(rawP256)));
+    }
+    if (!auth && subscription.getKey) {
+      const rawAuth = subscription.getKey('auth');
+      if (rawAuth) auth = btoa(String.fromCharCode.apply(null, new Uint8Array(rawAuth)));
+    }
+
+    const payload = {
+      endpoint: subscription.endpoint || subJson.endpoint,
+      keys: {
+        p256dh: p256dh,
+        auth: auth
+      },
+      userId: userId
+    };
+
     const resp = await fetch(`${this.baseUrl}/api/push/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        endpoint: subscription.endpoint,
-        keys: {
-          p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
-          auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
-        },
-        userId: userId
-      })
+      body: JSON.stringify(payload)
     });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.detail || 'Push subscription failed');
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch (e) {
+      throw new Error('Server returned invalid response');
+    }
+    if (!resp.ok) throw new Error(data.detail || data.message || 'Push subscription failed');
     return data;
   },
 
@@ -145,7 +172,7 @@ const API = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ endpoint })
     });
-    return await resp.json();
+    try { return await resp.json(); } catch(e) { return { status: 'ok' }; }
   },
 
   async sendTestPush() {
@@ -157,7 +184,14 @@ const API = {
         body: 'Push notifications are successfully active on your device!'
       })
     });
-    return await resp.json();
+    let data;
+    try {
+      data = await resp.json();
+    } catch (e) {
+      throw new Error('Server returned invalid response');
+    }
+    if (!resp.ok) throw new Error(data.detail || data.message || 'Test notification failed');
+    return data;
   }
 };
 
