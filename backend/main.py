@@ -562,18 +562,24 @@ async def get_scanner_stats():
 if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
-    @app.get("/.well-known/assetlinks.json")
+    @app.api_route("/.well-known/assetlinks.json", methods=["GET", "HEAD"])
+    @app.api_route("/.well-known/assetlinks.json/", methods=["GET", "HEAD"])
     async def serve_assetlinks():
         """
         Serves Android Digital Asset Links file for Play Store Trusted Web Activity (TWA) verification.
-        Always returns application/json, never HTML.
+        Always returns application/json with strict no-cache headers, never HTML. Supports GET and HEAD.
         """
+        headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
         assetlinks_path = os.path.join(FRONTEND_DIR, ".well-known", "assetlinks.json")
         if os.path.isfile(assetlinks_path):
             return FileResponse(
                 assetlinks_path,
                 media_type="application/json",
-                headers={"Cache-Control": "no-cache"}
+                headers=headers
             )
         return JSONResponse(
             content=[
@@ -589,7 +595,7 @@ if os.path.exists(FRONTEND_DIR):
                 }
             ],
             media_type="application/json",
-            headers={"Cache-Control": "no-cache"}
+            headers=headers
         )
 
     @app.get("/manifest.json")
@@ -703,6 +709,9 @@ Sitemap: https://www.zerobreakout.in/sitemap.xml
         # Don't intercept API routes
         if full_path.startswith("api/"):
             raise HTTPException(status_code=404, detail="API route not found")
+        # Safeguard: Never serve homepage HTML for assetlinks.json under any circumstances
+        if "assetlinks.json" in full_path:
+            return await serve_assetlinks()
         file_path = os.path.join(FRONTEND_DIR, full_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
