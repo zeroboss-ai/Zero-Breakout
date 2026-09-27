@@ -3,9 +3,22 @@ import json
 import logging
 import base64
 from typing import Dict, Any, List, Optional
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import serialization
-from pywebpush import webpush, WebPushException
+from datetime import datetime
+
+try:
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives import serialization
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
+
+try:
+    from pywebpush import webpush, WebPushException
+    HAS_WEBPUSH = True
+except ImportError:
+    webpush = None
+    WebPushException = Exception
+    HAS_WEBPUSH = False
 
 from .database import (
     save_push_subscription,
@@ -42,33 +55,35 @@ def _init_vapid_keys():
         except Exception as e:
             logger.warning(f"Error reading {VAPID_FILE}: {e}")
 
-    # 3. Generate new EC SECP256R1 VAPID keypair
-    try:
-        curve = ec.SECP256R1()
-        private_key = ec.generate_private_key(curve)
-        public_key = private_key.public_key()
+    # 3. Generate new EC SECP256R1 VAPID keypair if cryptography is available
+    if HAS_CRYPTO:
+        try:
+            curve = ec.SECP256R1()
+            private_key = ec.generate_private_key(curve)
+            public_key = private_key.public_key()
 
-        raw_pub = public_key.public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint
-        )
-        b64_pub = base64.urlsafe_b64encode(raw_pub).decode('utf-8').rstrip('=')
+            raw_pub = public_key.public_bytes(
+                encoding=serialization.Encoding.X962,
+                format=serialization.PublicFormat.UncompressedPoint
+            )
+            b64_pub = base64.urlsafe_b64encode(raw_pub).decode('utf-8').rstrip('=')
 
-        priv_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        ).decode('utf-8')
+            priv_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            ).decode('utf-8')
 
-        keys = {"public_key": b64_pub, "private_key": priv_pem}
-        with open(VAPID_FILE, "w", encoding="utf-8") as f:
-            json.dump(keys, f, indent=2)
+            keys = {"public_key": b64_pub, "private_key": priv_pem}
+            with open(VAPID_FILE, "w", encoding="utf-8") as f:
+                json.dump(keys, f, indent=2)
 
-        logger.info("Generated and saved new persistent VAPID keypair.")
-        return keys
-    except Exception as e:
-        logger.error(f"Failed to generate VAPID keypair: {e}")
-        return {"public_key": "", "private_key": ""}
+            logger.info("Generated and saved new persistent VAPID keypair.")
+            return keys
+        except Exception as e:
+            logger.error(f"Failed to generate VAPID keypair: {e}")
+
+    return {"public_key": "", "private_key": ""}
 
 _VAPID = _init_vapid_keys()
 
@@ -108,6 +123,10 @@ def broadcast_push(
     Broadcasts a Web Push notification to all registered app/browser devices.
     Automatically purges expired/unsubscribed endpoints (HTTP 410 / 404).
     """
+    if not HAS_WEBPUSH or not webpush:
+        logger.warning("WebPush library not installed. Skipping push broadcast.")
+        return {"status": "skipped", "message": "pywebpush not installed on environment"}
+
     private_key = _VAPID.get("private_key")
     if not private_key:
         logger.warning("Cannot broadcast push: VAPID private key is missing.")
