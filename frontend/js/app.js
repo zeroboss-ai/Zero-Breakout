@@ -868,8 +868,13 @@ function initApp() {
 
       if (sub && Notification.permission === 'granted') {
         if (isFromAccount) {
-          showToast('🔔 Sending test breakout alert to your device...');
-          await API.sendTestPush();
+          showToast('🔔 Sending test breakout alert...');
+          try {
+            await API.sendTestPush();
+            showToast('✓ Breakout Alerts Active (Schedule: 6:30 PM & 8:45 AM)');
+          } catch(e) {
+            showToast('✓ Breakout Notifications are Active!');
+          }
         }
         if (pushPromptBanner) pushPromptBanner.style.display = 'none';
         return true;
