@@ -56,6 +56,54 @@ def fetch_nse_bhavcopy_for_date(target_date: datetime) -> Optional[pd.DataFrame]
         except Exception as e:
             logger.warning(f"Could not fetch Bhavcopy from {url}: {e}")
 
+    # Fallback to Yahoo Finance bulk download if NSE archives blocked/unavailable (e.g. cloud datacenter IPs)
+    logger.info(f"NSE direct archives unavailable for {target_date.strftime('%Y-%m-%d')}. Attempting Yahoo Finance fallback...")
+    df_yf = fetch_yahoo_eod_universe(target_date)
+    if df_yf is not None and not df_yf.empty:
+        return df_yf
+
+    return None
+
+def fetch_yahoo_eod_universe(target_date: datetime) -> Optional[pd.DataFrame]:
+    """
+    Bulletproof fallback for cloud environments (Render, AWS) when NSE archives block cloud IPs.
+    Fetches the day's candles across quality NSE stocks using yfinance.
+    """
+    try:
+        import yfinance as yf
+        conn = get_connection()
+        rows = conn.execute("SELECT symbol FROM stocks WHERE is_active = 1 AND market_cap_cr >= 2000").fetchall()
+        conn.close()
+        symbols = [r["symbol"] for r in rows] if rows else ["RELIANCE", "TCS", "HDFCBANK", "INFY", "BHARTIARTL", "TRENT"]
+        
+        tickers = [f"{s}.NS" for s in symbols]
+        start_d = target_date.strftime("%Y-%m-%d")
+        end_d = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        df = yf.download(tickers, start=start_d, end=end_d, group_by="ticker", threads=True, progress=False)
+        if df is None or df.empty:
+            return None
+
+        records = []
+        for sym in symbols:
+            tk = f"{sym}.NS"
+            if tk in df.columns.levels[0]:
+                sub = df[tk].dropna(subset=["Close"])
+                if not sub.empty:
+                    row = sub.iloc[-1]
+                    records.append({
+                        "symbol": sym,
+                        "open": round(float(row["Open"]), 2),
+                        "high": round(float(row["High"]), 2),
+                        "low": round(float(row["Low"]), 2),
+                        "close": round(float(row["Close"]), 2),
+                        "volume": int(row.get("Volume", 0) or 0)
+                    })
+        if records:
+            logger.info(f"Successfully fetched {len(records)} stock candles via Yahoo Finance fallback for {start_d}")
+            return pd.DataFrame(records)
+    except Exception as e:
+        logger.warning(f"Yahoo fallback error for {target_date.strftime('%Y-%m-%d')}: {e}")
     return None
 
 def process_and_save_bhavcopy(df: pd.DataFrame, target_date_str: str) -> int:
@@ -267,6 +315,7 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
     conn = get_connection()
     row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
     last_db_date_str = row["max_date"] if row and row["max_date"] else None
+    conn.close()
     
     if not last_db_date_str:
         last_db_date = target_end - timedelta(days=30)
@@ -285,7 +334,6 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
 
     if not dates_to_check:
         logger.info("Database is already up to date with the latest NSE trading session.")
-        conn.close()
         return {"status": "up_to_date", "synced_days": 0, "message": "Already up to date."}
 
     logger.info(f"Identified {len(dates_to_check)} candidate trading days to verify: {[d.strftime('%Y-%m-%d') for d in dates_to_check]}")
@@ -295,7 +343,11 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
 
     for d in dates_to_check:
         d_str = d.strftime("%Y-%m-%d")
-        existing_cnt = conn.execute("SELECT COUNT(DISTINCT symbol) as cnt FROM price_history WHERE date = ?", (d_str,)).fetchone()["cnt"]
+        chk_conn = get_connection()
+        chk_row = chk_conn.execute("SELECT COUNT(DISTINCT symbol) as cnt FROM price_history WHERE date = ?", (d_str,)).fetchone()
+        existing_cnt = chk_row["cnt"] if chk_row else 0
+        chk_conn.close()
+
         if existing_cnt >= 500:
             logger.info(f"[{d_str}] Already loaded ({existing_cnt} stocks). Skipping.")
             continue
@@ -310,8 +362,6 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
                 total_candles_added += saved
         else:
             logger.info(f"[{d_str}] No Bhavcopy available (likely market holiday or weekend).")
-
-    conn.close()
 
     scan_results = None
     if synced_days > 0:

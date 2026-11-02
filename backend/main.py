@@ -463,7 +463,7 @@ async def trigger_manual_sync(
     if clean_token != ADMIN_SESSION_TOKEN:
         raise HTTPException(status_code=403, detail="Unauthorized: Valid Master Admin token required.")
 
-    background_tasks.add_task(run_daily_eod_pipeline)
+    background_tasks.add_task(run_daily_eod_data_sync)
     return {
         "status": "success",
         "message": "Full market scan (1,250+ stocks & IPOs) initiated successfully by Admin."
@@ -481,7 +481,7 @@ async def trigger_bhavcopy_ingest(
     if clean_token != ADMIN_SESSION_TOKEN:
         raise HTTPException(status_code=403, detail="Unauthorized: Valid Master Admin token required.")
     
-    background_tasks.add_task(run_daily_eod_pipeline)
+    background_tasks.add_task(run_daily_eod_data_sync)
     return {"status": "success", "message": "Bhavcopy ingestion and pattern scan started in background."}
 
 @app.post("/api/admin/telegram-test")

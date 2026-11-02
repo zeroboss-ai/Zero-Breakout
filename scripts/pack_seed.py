@@ -61,7 +61,7 @@ def pack_seed():
     with conn_dst:
         conn_dst.executemany("INSERT OR REPLACE INTO signals VALUES (?,?,?,?,?,?,?,?,?)", signals_rows)
 
-    # 3. Price History table (Keep from 2024-08-01 to 2026-09-22 — ~290 trading days, >252 days for 52W High)
+    # 3. Price History table (Keep from 2024-09-01 to 2026-11-02 — >500 trading days, >252 days for 52W High)
     conn_dst.execute("""
     CREATE TABLE price_history (
         symbol TEXT NOT NULL,
@@ -81,7 +81,7 @@ def pack_seed():
             INSERT INTO price_history 
             SELECT ph.symbol, ph.date, ph.open, ph.high, ph.low, ph.close, ph.volume 
             FROM src.price_history ph
-            WHERE ph.date >= '2024-08-01' 
+            WHERE ph.date >= '2024-09-01' 
             AND ph.symbol IN (SELECT symbol FROM stocks);
         """)
     conn_dst.execute("DETACH DATABASE src;")
@@ -93,6 +93,18 @@ def pack_seed():
         symbol TEXT NOT NULL,
         created_at TEXT NOT NULL,
         PRIMARY KEY(user_id, symbol)
+    );
+    """)
+
+    # 5. Push Subscriptions
+    conn_dst.execute("""
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+        endpoint TEXT PRIMARY KEY,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        user_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     """)
 
