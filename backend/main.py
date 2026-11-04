@@ -151,7 +151,6 @@ def maybe_trigger_background_sync(background_tasks: Optional[BackgroundTasks] = 
 
 @app.get("/api/signals")
 async def get_signals(
-    background_tasks: BackgroundTasks,
     pattern: Optional[str] = Query(None, max_length=100, description="Filter by pattern type or 'all'"),
     search: Optional[str] = Query(None, max_length=100, description="Search by symbol or company name"),
     limit: int = Query(150, ge=1, le=500)
@@ -160,7 +159,6 @@ async def get_signals(
     Returns precomputed signals from the signals table.
     No pattern computation on page load — instantaneous response!
     """
-    maybe_trigger_background_sync(background_tasks)
     try:
         clean_pattern = str(pattern).strip() if pattern else None
         clean_search = str(search).strip() if search else None

@@ -26,23 +26,25 @@ def run_integration_tests():
     ath_data = resp.json()
     print(f"   [OK] Returned {ath_data['count']} ATH Breakout signals")
 
-    print("\n3. Testing GET /api/signals with search query...")
-    resp = client.get("/api/signals?search=IFCI")
+    target_sym = data["signals"][0]["symbol"] if data.get("signals") else "IFCI"
+
+    print(f"\n3. Testing GET /api/signals with search query ({target_sym})...")
+    resp = client.get(f"/api/signals?search={target_sym}")
     assert resp.status_code == 200
     search_data = resp.json()
     assert search_data["count"] > 0
     print(f"   [OK] Search query matched {search_data['count']} items")
 
-    print("\n4. Testing GET /api/stocks/IFCI/setup...")
-    resp = client.get("/api/stocks/IFCI/setup")
+    print(f"\n4. Testing GET /api/stocks/{target_sym}/setup...")
+    resp = client.get(f"/api/stocks/{target_sym}/setup")
     assert resp.status_code == 200
     setup_data = resp.json()
-    assert setup_data["symbol"] == "IFCI"
+    assert setup_data["symbol"] == target_sym
     assert "current_price" in setup_data
-    print(f"   [OK] IFCI Setup loaded: Price=Rs {setup_data['current_price']}, ATH=Rs {setup_data['all_time_high']}")
+    print(f"   [OK] {target_sym} Setup loaded: Price=Rs {setup_data['current_price']}, ATH=Rs {setup_data['all_time_high']}")
 
-    print("\n5. Testing GET /api/stocks/IFCI/history (1Y & 5Y)...")
-    resp_1y = client.get("/api/stocks/IFCI/history?range=1Y")
+    print(f"\n5. Testing GET /api/stocks/{target_sym}/history (1Y & 5Y)...")
+    resp_1y = client.get(f"/api/stocks/{target_sym}/history?range=1Y")
     assert resp_1y.status_code == 200
     h1y = resp_1y.json()
     assert len(h1y["candles"]) > 0

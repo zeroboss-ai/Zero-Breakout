@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import json
+import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -194,6 +195,45 @@ def insert_signals_batch(signals: List[Dict[str, Any]]):
         """, rows)
     conn.close()
 
+_latest_prices_cache = {
+    "timestamp": 0.0,
+    "current_prices": {},
+    "prev_prices": {}
+}
+
+def get_recent_price_maps(conn, max_age_seconds: float = 60.0):
+    """
+    High-performance in-memory batch price map.
+    Eliminates 150+ N+1 queries by fetching latest and previous day prices in 2 fast index scans.
+    """
+    global _latest_prices_cache
+    now = time.time()
+    if (now - _latest_prices_cache["timestamp"] < max_age_seconds) and _latest_prices_cache["current_prices"]:
+        return _latest_prices_cache["current_prices"], _latest_prices_cache["prev_prices"]
+
+    try:
+        dates_rows = conn.execute("SELECT DISTINCT date FROM price_history ORDER BY date DESC LIMIT 2").fetchall()
+        if not dates_rows:
+            return {}, {}
+        
+        d_now = dates_rows[0]["date"]
+        d_prev = dates_rows[1]["date"] if len(dates_rows) > 1 else None
+
+        cur_rows = conn.execute("SELECT symbol, close FROM price_history WHERE date = ?", (d_now,)).fetchall()
+        cur_map = {r["symbol"]: r["close"] for r in cur_rows}
+
+        prev_map = {}
+        if d_prev:
+            prev_rows = conn.execute("SELECT symbol, close FROM price_history WHERE date = ?", (d_prev,)).fetchall()
+            prev_map = {r["symbol"]: r["close"] for r in prev_rows}
+
+        _latest_prices_cache["timestamp"] = now
+        _latest_prices_cache["current_prices"] = cur_map
+        _latest_prices_cache["prev_prices"] = prev_map
+        return cur_map, prev_map
+    except Exception as e:
+        return {}, {}
+
 def get_latest_signals(pattern_type: Optional[str] = None, search_query: Optional[str] = None, limit: int = 150, min_mcap_cr: float = 2000.0) -> List[Dict[str, Any]]:
     """Fetches signals with stock metadata for the Scanner view (minimum ₹2,000 Cr Market Cap)"""
     conn = get_connection()
@@ -247,6 +287,8 @@ def get_latest_signals(pattern_type: Optional[str] = None, search_query: Optiona
     cursor = conn.execute(query, params)
     rows = cursor.fetchall()
 
+    cur_map, prev_map = get_recent_price_maps(conn)
+
     result = []
     for r in rows:
         d = dict(r)
@@ -256,26 +298,13 @@ def get_latest_signals(pattern_type: Optional[str] = None, search_query: Optiona
             except Exception:
                 d["metadata"] = {}
         
-        # Calculate day change for scanner display
-        try:
-            p_rows = conn.execute("""
-                SELECT close FROM price_history 
-                WHERE symbol = ? 
-                ORDER BY date DESC LIMIT 2
-            """, (d["symbol"],)).fetchall()
-            if len(p_rows) >= 2:
-                c_now = p_rows[0]["close"]
-                c_prev = p_rows[1]["close"]
-                d["current_price"] = c_now
-                d["change"] = round(c_now - c_prev, 2)
-                d["change_pct"] = round(((c_now - c_prev) / c_prev) * 100, 2) if c_prev else 0.0
-            elif len(p_rows) == 1:
-                d["current_price"] = p_rows[0]["close"]
-                d["change"] = 0.0
-                d["change_pct"] = 0.0
-        except Exception:
-            d["change"] = 0.0
-            d["change_pct"] = 0.0
+        # Calculate instant day change from pre-fetched price map (0 extra queries)
+        sym = d["symbol"]
+        c_now = cur_map.get(sym, d.get("current_price", 0.0))
+        c_prev = prev_map.get(sym, c_now)
+        d["current_price"] = c_now
+        d["change"] = round(c_now - c_prev, 2)
+        d["change_pct"] = round(((c_now - c_prev) / c_prev) * 100, 2) if c_prev else 0.0
 
         result.append(d)
     conn.close()

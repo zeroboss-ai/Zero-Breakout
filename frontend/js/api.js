@@ -6,36 +6,52 @@
 const API = {
   baseUrl: window.location.origin,
 
+  async fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const resp = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return resp;
+    } catch (err) {
+      clearTimeout(timer);
+      if (err.name === 'AbortError') {
+        throw new Error('Request timed out. Please check your connection.');
+      }
+      throw err;
+    }
+  },
+
   async getSignals(pattern = 'all', search = '') {
     const params = new URLSearchParams();
     if (pattern && pattern !== 'all') params.append('pattern', pattern);
     if (search && search.trim()) params.append('search', search.trim());
     
-    const resp = await fetch(`${this.baseUrl}/api/signals?${params.toString()}`);
+    const resp = await this.fetchWithTimeout(`${this.baseUrl}/api/signals?${params.toString()}`, {}, 12000);
     if (!resp.ok) throw new Error('Failed to fetch signals');
     return await resp.json();
   },
 
   async getStockSetup(symbol) {
-    const resp = await fetch(`${this.baseUrl}/api/stocks/${symbol.toUpperCase()}/setup`);
+    const resp = await this.fetchWithTimeout(`${this.baseUrl}/api/stocks/${symbol.toUpperCase()}/setup`, {}, 12000);
     if (!resp.ok) throw new Error(`Failed to load setup for ${symbol}`);
     return await resp.json();
   },
 
   async getStockHistory(symbol, range = '1Y') {
-    const resp = await fetch(`${this.baseUrl}/api/stocks/${symbol.toUpperCase()}/history?range=${range}`);
+    const resp = await this.fetchWithTimeout(`${this.baseUrl}/api/stocks/${symbol.toUpperCase()}/history?range=${range}`, {}, 15000);
     if (!resp.ok) throw new Error(`Failed to load chart data for ${symbol}`);
     return await resp.json();
   },
 
   async getAiAnalysis(symbol) {
-    const resp = await fetch(`${this.baseUrl}/api/stocks/${symbol.toUpperCase()}/ai-analysis`);
+    const resp = await this.fetchWithTimeout(`${this.baseUrl}/api/stocks/${symbol.toUpperCase()}/ai-analysis`, {}, 25000);
     if (!resp.ok) throw new Error('Failed to fetch AI analysis');
     return await resp.json();
   },
 
   async getWatchlist() {
-    const resp = await fetch(`${this.baseUrl}/api/watchlist`);
+    const resp = await this.fetchWithTimeout(`${this.baseUrl}/api/watchlist`, {}, 12000);
     if (!resp.ok) throw new Error('Failed to fetch watchlist');
     return await resp.json();
   },

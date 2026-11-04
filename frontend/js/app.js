@@ -173,21 +173,54 @@ function initApp() {
 
   // ==================== TAB 1: SCANNER ==================== //
 
-  async function loadSignals() {
+  async function loadSignals(forceSpinner = false) {
     if (!signalsListEl) return;
-    signalsListEl.innerHTML = `
-      <div class="loading-spinner">
-        <div class="spinner"></div>
-        <span>Scanning patterns...</span>
-      </div>
-    `;
+
+    const cacheKey = `zb_cache_signals_${state.selectedPattern}_${state.searchQuery || ''}`;
+    let hasRenderedCached = false;
+
+    // Instant Zero-Latency Render: show cached signals immediately if available
+    if (!forceSpinner) {
+      if (state.signals && state.signals.length > 0 && !state.searchQuery) {
+        renderSignals(state.signals);
+        hasRenderedCached = true;
+      } else {
+        try {
+          const cachedJson = localStorage.getItem(cacheKey);
+          if (cachedJson) {
+            const cachedSignals = JSON.parse(cachedJson);
+            if (Array.isArray(cachedSignals) && cachedSignals.length > 0) {
+              state.signals = cachedSignals;
+              renderSignals(cachedSignals);
+              hasRenderedCached = true;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Only show full loading spinner if no previous signals are rendered
+    if (!hasRenderedCached) {
+      signalsListEl.innerHTML = `
+        <div class="loading-spinner">
+          <div class="spinner"></div>
+          <span>Scanning patterns...</span>
+        </div>
+      `;
+    }
 
     try {
       const data = await API.getSignals(state.selectedPattern, state.searchQuery);
       state.signals = data.signals || [];
       renderSignals(state.signals);
+      // Save in cache for instantaneous loads
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(state.signals));
+      } catch (e) {}
     } catch (err) {
-      if (signalsListEl) {
+      console.warn('Load signals notice:', err);
+      // Keep displaying cached signals if already rendered, otherwise show retry
+      if (!hasRenderedCached && signalsListEl) {
         signalsListEl.innerHTML = `
           <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
             <p>Unable to load pattern signals.</p>
