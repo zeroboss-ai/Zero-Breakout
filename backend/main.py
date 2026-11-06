@@ -120,26 +120,6 @@ FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 async def health_check():
     return {"status": "ok", "app": "ZeroBreakout Terminal", "timestamp": datetime.utcnow().isoformat()}
 
-@app.get("/api/test-nse")
-async def test_nse_connectivity():
-    import requests
-    from .data_fetcher import NSE_HEADERS
-    results = {}
-    session = requests.Session()
-    session.headers.update(NSE_HEADERS)
-    test_urls = [
-        "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20261105_F_0000.csv.zip",
-        "https://archives.nseindia.com/products/content/sec_bhavdata_full_05112026.csv",
-        "https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=1d"
-    ]
-    for u in test_urls:
-        try:
-            r = session.get(u, timeout=7)
-            results[u] = {"status": r.status_code, "len": len(r.content)}
-        except Exception as e:
-            results[u] = {"error": type(e).__name__, "msg": str(e)}
-    return results
-
 # ----------------- CONTINUOUS SELF-HEALING SYNC ----------------- #
 
 _last_auto_sync_check = 0.0

@@ -88,12 +88,19 @@ def fetch_yahoo_eod_universe(target_date: datetime) -> Optional[pd.DataFrame]:
             chunk_syms = symbols[i:i+chunk_size]
             chunk_tickers = [f"{s}.NS" for s in chunk_syms]
             try:
-                df = yf.download(chunk_tickers, start=start_d, end=end_d, group_by="ticker", threads=False, progress=False)
+                df = yf.download(chunk_tickers, start=start_d, end=end_d, group_by="ticker", threads=4, progress=False)
                 if df is not None and not df.empty:
                     for sym in chunk_syms:
                         tk = f"{sym}.NS"
-                        if tk in df.columns.levels[0]:
-                            sub = df[tk].dropna(subset=["Close"])
+                        try:
+                            if isinstance(df.columns, pd.MultiIndex):
+                                if tk in df.columns.levels[0]:
+                                    sub = df[tk].dropna(subset=["Close"])
+                                else:
+                                    continue
+                            else:
+                                sub = df.dropna(subset=["Close"])
+                            
                             if not sub.empty:
                                 row = sub.iloc[-1]
                                 records.append({
@@ -104,6 +111,8 @@ def fetch_yahoo_eod_universe(target_date: datetime) -> Optional[pd.DataFrame]:
                                     "close": round(float(row["Close"]), 2),
                                     "volume": int(row.get("Volume", 0) or 0)
                                 })
+                        except Exception:
+                            continue
             except Exception as ce:
                 logger.warning(f"Chunk download error ({i}): {ce}")
 
