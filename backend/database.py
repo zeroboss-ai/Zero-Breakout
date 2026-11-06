@@ -14,10 +14,12 @@ def ensure_data_dir():
 
 def get_connection() -> sqlite3.Connection:
     ensure_data_dir()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=60.0)
     conn.row_factory = sqlite3.Row
-    # Enable WAL mode for high performance concurrency
+    # Enable WAL mode with 30s busy timeout and NORMAL sync for non-blocking concurrency
     conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=30000;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
     return conn
 

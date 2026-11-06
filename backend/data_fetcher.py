@@ -3,12 +3,15 @@ import io
 import zipfile
 import requests
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
-import pandas as pd
 from typing import List, Dict, Any, Optional
+import pandas as pd
 from .database import upsert_price_batch, upsert_stock, update_stock_ath_from_history, get_connection
 
 logger = logging.getLogger("ZeroBreakout.DataFetcher")
+
+_sync_lock = threading.Lock()
 
 NSE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -67,38 +70,43 @@ def fetch_nse_bhavcopy_for_date(target_date: datetime) -> Optional[pd.DataFrame]
 def fetch_yahoo_eod_universe(target_date: datetime) -> Optional[pd.DataFrame]:
     """
     Bulletproof fallback for cloud environments (Render, AWS) when NSE archives block cloud IPs.
-    Fetches the day's candles across quality NSE stocks using yfinance.
+    Fetches the day's candles across quality NSE stocks using yfinance in safe memory-bounded chunks.
     """
     try:
         import yfinance as yf
         conn = get_connection()
-        rows = conn.execute("SELECT symbol FROM stocks WHERE is_active = 1 AND market_cap_cr >= 2000").fetchall()
+        rows = conn.execute("SELECT symbol FROM stocks WHERE is_active = 1 AND market_cap_cr >= 2000 ORDER BY market_cap_cr DESC LIMIT 400").fetchall()
         conn.close()
         symbols = [r["symbol"] for r in rows] if rows else ["RELIANCE", "TCS", "HDFCBANK", "INFY", "BHARTIARTL", "TRENT"]
         
-        tickers = [f"{s}.NS" for s in symbols]
         start_d = target_date.strftime("%Y-%m-%d")
         end_d = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
         
-        df = yf.download(tickers, start=start_d, end=end_d, group_by="ticker", threads=True, progress=False)
-        if df is None or df.empty:
-            return None
-
         records = []
-        for sym in symbols:
-            tk = f"{sym}.NS"
-            if tk in df.columns.levels[0]:
-                sub = df[tk].dropna(subset=["Close"])
-                if not sub.empty:
-                    row = sub.iloc[-1]
-                    records.append({
-                        "symbol": sym,
-                        "open": round(float(row["Open"]), 2),
-                        "high": round(float(row["High"]), 2),
-                        "low": round(float(row["Low"]), 2),
-                        "close": round(float(row["Close"]), 2),
-                        "volume": int(row.get("Volume", 0) or 0)
-                    })
+        chunk_size = 50
+        for i in range(0, len(symbols), chunk_size):
+            chunk_syms = symbols[i:i+chunk_size]
+            chunk_tickers = [f"{s}.NS" for s in chunk_syms]
+            try:
+                df = yf.download(chunk_tickers, start=start_d, end=end_d, group_by="ticker", threads=False, progress=False)
+                if df is not None and not df.empty:
+                    for sym in chunk_syms:
+                        tk = f"{sym}.NS"
+                        if tk in df.columns.levels[0]:
+                            sub = df[tk].dropna(subset=["Close"])
+                            if not sub.empty:
+                                row = sub.iloc[-1]
+                                records.append({
+                                    "symbol": sym,
+                                    "open": round(float(row["Open"]), 2),
+                                    "high": round(float(row["High"]), 2),
+                                    "low": round(float(row["Low"]), 2),
+                                    "close": round(float(row["Close"]), 2),
+                                    "volume": int(row.get("Volume", 0) or 0)
+                                })
+            except Exception as ce:
+                logger.warning(f"Chunk download error ({i}): {ce}")
+
         if records:
             logger.info(f"Successfully fetched {len(records)} stock candles via Yahoo Finance fallback for {start_d}")
             return pd.DataFrame(records)
@@ -299,80 +307,88 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
     Detects any missing trading sessions between the newest price_history date and current IST date/time.
     Downloads all missing Bhavcopies chronologically, ingests them into the database, updates ATHs,
     and runs the pattern detection scanner across the entire universe.
+    Guarded with a mutex lock to prevent concurrent redundant syncs.
     """
-    from .patterns.engine import pattern_engine
+    if not _sync_lock.acquire(blocking=False):
+        logger.info("sync_missing_bhavcopies: Another sync is currently in progress. Skipping duplicate request.")
+        return {"status": "in_progress", "synced_days": 0, "message": "Sync already in progress."}
 
-    ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-    logger.info(f"Checking for missing Bhavcopies. Current IST Time: {ist_now.strftime('%Y-%m-%d %H:%M:%S (%A)')}")
+    try:
+        from .patterns.engine import pattern_engine
 
-    # Determine latest target date
-    # If weekday and before 16:15 IST, market is still active or Bhavcopy not yet ready, so target up to yesterday
-    if ist_now.weekday() < 5 and (ist_now.hour < 16 or (ist_now.hour == 16 and ist_now.minute < 15)):
-        target_end = ist_now - timedelta(days=1)
-    else:
-        target_end = ist_now
+        ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+        logger.info(f"Checking for missing Bhavcopies. Current IST Time: {ist_now.strftime('%Y-%m-%d %H:%M:%S (%A)')}")
 
-    conn = get_connection()
-    row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
-    last_db_date_str = row["max_date"] if row and row["max_date"] else None
-    conn.close()
-    
-    if not last_db_date_str:
-        last_db_date = target_end - timedelta(days=30)
-    else:
-        last_db_date = datetime.strptime(last_db_date_str, "%Y-%m-%d")
-
-    logger.info(f"Latest database market date: {last_db_date.strftime('%Y-%m-%d')}. Target date: {target_end.strftime('%Y-%m-%d')}")
-
-    # Generate candidate trading days (Mon-Fri)
-    curr = last_db_date + timedelta(days=1)
-    dates_to_check = []
-    while curr.date() <= target_end.date():
-        if curr.weekday() < 5:  # Mon=0, Fri=4
-            dates_to_check.append(curr)
-        curr += timedelta(days=1)
-
-    if not dates_to_check:
-        logger.info("Database is already up to date with the latest NSE trading session.")
-        return {"status": "up_to_date", "synced_days": 0, "message": "Already up to date."}
-
-    logger.info(f"Identified {len(dates_to_check)} candidate trading days to verify: {[d.strftime('%Y-%m-%d') for d in dates_to_check]}")
-
-    synced_days = 0
-    total_candles_added = 0
-
-    for d in dates_to_check:
-        d_str = d.strftime("%Y-%m-%d")
-        chk_conn = get_connection()
-        chk_row = chk_conn.execute("SELECT COUNT(DISTINCT symbol) as cnt FROM price_history WHERE date = ?", (d_str,)).fetchone()
-        existing_cnt = chk_row["cnt"] if chk_row else 0
-        chk_conn.close()
-
-        if existing_cnt >= 500:
-            logger.info(f"[{d_str}] Already loaded ({existing_cnt} stocks). Skipping.")
-            continue
-
-        logger.info(f"[{d_str}] Missing from DB. Downloading Bhavcopy from NSE...")
-        df = fetch_nse_bhavcopy_for_date(d)
-        if df is not None and not df.empty:
-            saved = process_and_save_bhavcopy(df, d_str)
-            logger.info(f"[{d_str}] Successfully saved {saved} stock records.")
-            if saved > 0:
-                synced_days += 1
-                total_candles_added += saved
+        # Determine latest target date
+        # If weekday and before 16:15 IST, market is still active or Bhavcopy not yet ready, so target up to yesterday
+        if ist_now.weekday() < 5 and (ist_now.hour < 16 or (ist_now.hour == 16 and ist_now.minute < 15)):
+            target_end = ist_now - timedelta(days=1)
         else:
-            logger.info(f"[{d_str}] No Bhavcopy available (likely market holiday or weekend).")
+            target_end = ist_now
 
-    scan_results = None
-    if synced_days > 0:
-        logger.info(f"Catch-up complete: Ingested {synced_days} trading days ({total_candles_added} candles). Triggering pattern engine scan...")
-        scan_results = pattern_engine.scan_all_stocks()
-        logger.info(f"Pattern Engine Scan complete: {scan_results}")
+        conn = get_connection()
+        row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
+        last_db_date_str = row["max_date"] if row and row["max_date"] else None
+        conn.close()
+        
+        if not last_db_date_str:
+            last_db_date = target_end - timedelta(days=30)
+        else:
+            last_db_date = datetime.strptime(last_db_date_str, "%Y-%m-%d")
 
-    return {
-        "status": "success",
-        "synced_days": synced_days,
-        "candles_added": total_candles_added,
-        "scan_results": scan_results
-    }
+        logger.info(f"Latest database market date: {last_db_date.strftime('%Y-%m-%d')}. Target date: {target_end.strftime('%Y-%m-%d')}")
+
+        # Generate candidate trading days (Mon-Fri)
+        curr = last_db_date + timedelta(days=1)
+        dates_to_check = []
+        while curr.date() <= target_end.date():
+            if curr.weekday() < 5:  # Mon=0, Fri=4
+                dates_to_check.append(curr)
+            curr += timedelta(days=1)
+
+        if not dates_to_check:
+            logger.info("Database is already up to date with the latest NSE trading session.")
+            return {"status": "up_to_date", "synced_days": 0, "message": "Already up to date."}
+
+        logger.info(f"Identified {len(dates_to_check)} candidate trading days to verify: {[d.strftime('%Y-%m-%d') for d in dates_to_check]}")
+
+        synced_days = 0
+        total_candles_added = 0
+
+        for d in dates_to_check:
+            d_str = d.strftime("%Y-%m-%d")
+            chk_conn = get_connection()
+            chk_row = chk_conn.execute("SELECT COUNT(DISTINCT symbol) as cnt FROM price_history WHERE date = ?", (d_str,)).fetchone()
+            existing_cnt = chk_row["cnt"] if chk_row else 0
+            chk_conn.close()
+
+            if existing_cnt >= 500:
+                logger.info(f"[{d_str}] Already loaded ({existing_cnt} stocks). Skipping.")
+                continue
+
+            logger.info(f"[{d_str}] Missing from DB. Downloading Bhavcopy from NSE...")
+            df = fetch_nse_bhavcopy_for_date(d)
+            if df is not None and not df.empty:
+                saved = process_and_save_bhavcopy(df, d_str)
+                logger.info(f"[{d_str}] Successfully saved {saved} stock records.")
+                if saved > 0:
+                    synced_days += 1
+                    total_candles_added += saved
+            else:
+                logger.info(f"[{d_str}] No Bhavcopy available (likely market holiday or weekend).")
+
+        scan_results = None
+        if synced_days > 0:
+            logger.info(f"Catch-up complete: Ingested {synced_days} trading days ({total_candles_added} candles). Triggering pattern engine scan...")
+            scan_results = pattern_engine.scan_all_stocks()
+            logger.info(f"Pattern Engine Scan complete: {scan_results}")
+
+        return {
+            "status": "success",
+            "synced_days": synced_days,
+            "candles_added": total_candles_added,
+            "scan_results": scan_results
+        }
+    finally:
+        _sync_lock.release()
 

@@ -119,62 +119,18 @@ def fetch_real_live_candles(symbol: str, years: int = 5) -> List[tuple]:
 def sync_live_universe(stocks_to_sync: List[Dict[str, Any]] = None, max_stocks: int = 60):
     """
     Downloads real live market data for NSE stocks, saves to SQLite, and runs pattern scan.
+    Delegates cleanly to the robust multi-day Bhavcopy sync engine without freezing the server.
     """
-    init_db()
-    universe = stocks_to_sync or NSE_UNIVERSE[:max_stocks]
-    
-    logger.info(f"Starting LIVE NSE Data Sync for {len(universe)} stocks...")
-    success_count = 0
-    total_candles = 0
+    from .data_fetcher import sync_missing_bhavcopies
+    from .patterns.engine import pattern_engine
 
-    for idx, item in enumerate(universe):
-        sym = item["symbol"]
-        name = item["name"]
-        sector = item["sector"]
-        mcap = item.get("mcap", 0)
-
-        logger.info(f"[{idx+1}/{len(universe)}] Fetching real live data for {sym}...")
-        candles = fetch_real_live_candles(sym, years=5)
-
-        if candles:
-            # Calculate real historical ATH
-            all_highs = [c[3] for c in candles]
-            real_ath = max(all_highs)
-            ath_idx = all_highs.index(real_ath)
-            ath_date = candles[ath_idx][1]
-
-            # Upsert stock metadata first to satisfy foreign key constraints
-            upsert_stock(
-                symbol=sym,
-                company_name=name,
-                sector=sector,
-                market_cap_cr=mcap,
-                all_time_high=real_ath,
-                ath_date=ath_date
-            )
-
-            # Batch upsert price history
-            upsert_price_batch(candles)
-            success_count += 1
-            total_candles += len(candles)
-            logger.info(f"   -> Synced {len(candles)} real daily candles for {sym} (Real ATH: Rs {real_ath:.2f})")
-        else:
-            upsert_stock(symbol=sym, company_name=name, sector=sector, market_cap_cr=mcap, all_time_high=0, ath_date=None)
-
-        # Small delay to be polite to data API
-        time.sleep(0.1)
-
-    logger.info(f"Live data sync completed: {success_count}/{len(universe)} stocks synced ({total_candles} real candles).")
-    
-    # Run Pattern Engine across real market data
-    logger.info("Running pattern detection on real market data...")
-    scan_results = pattern_engine.scan_all_stocks()
-    logger.info(f"Live pattern scan completed: {scan_results}")
-    return {
-        "stocks_synced": success_count,
-        "total_candles": total_candles,
-        "scan_results": scan_results
-    }
+    logger.info("Starting Live Data Sync...")
+    res = sync_missing_bhavcopies()
+    if res.get("synced_days", 0) == 0:
+        logger.info("Bhavcopy up to date; running fast pattern scan...")
+        scan_res = pattern_engine.scan_all_stocks()
+        res["scan_results"] = scan_res
+    return res
 
 if __name__ == "__main__":
     sync_live_universe()

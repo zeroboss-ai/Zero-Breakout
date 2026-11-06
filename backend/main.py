@@ -444,7 +444,28 @@ async def check_auth_status(
         "admin_email": "Zerobossai@gmail.com" if is_admin else None
     }
 
+_last_manual_sync_trigger = 0.0
+
 @app.post("/api/sync/run")
+async def trigger_eod_sync_run(background_tasks: BackgroundTasks):
+    """
+    On-demand rate-limited trigger for EOD sync and pattern scan.
+    Rate limited to once per 5 minutes to prevent spam.
+    """
+    global _last_manual_sync_trigger
+    now = time.time()
+    if now - _last_manual_sync_trigger < 300:
+        return {
+            "status": "rate_limited",
+            "message": "Sync was triggered recently. Data is updating in background."
+        }
+    _last_manual_sync_trigger = now
+    background_tasks.add_task(run_daily_eod_data_sync)
+    return {
+        "status": "success",
+        "message": "NSE data sync & pattern scan started in background."
+    }
+
 @app.post("/api/admin/scan")
 @app.get("/api/admin/scan")
 async def trigger_manual_sync(
