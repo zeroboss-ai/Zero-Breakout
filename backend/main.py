@@ -120,6 +120,26 @@ FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 async def health_check():
     return {"status": "ok", "app": "ZeroBreakout Terminal", "timestamp": datetime.utcnow().isoformat()}
 
+@app.get("/api/test-nse")
+async def test_nse_connectivity():
+    import requests
+    from .data_fetcher import NSE_HEADERS
+    results = {}
+    session = requests.Session()
+    session.headers.update(NSE_HEADERS)
+    test_urls = [
+        "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20261105_F_0000.csv.zip",
+        "https://archives.nseindia.com/products/content/sec_bhavdata_full_05112026.csv",
+        "https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=1d"
+    ]
+    for u in test_urls:
+        try:
+            r = session.get(u, timeout=7)
+            results[u] = {"status": r.status_code, "len": len(r.content)}
+        except Exception as e:
+            results[u] = {"error": type(e).__name__, "msg": str(e)}
+    return results
+
 # ----------------- CONTINUOUS SELF-HEALING SYNC ----------------- #
 
 _last_auto_sync_check = 0.0
@@ -556,58 +576,6 @@ async def trigger_live_data_sync(background_tasks: BackgroundTasks):
     from .sync_live_data import sync_live_universe
     background_tasks.add_task(sync_live_universe)
     return {"message": "Real Live NSE Data Sync started in background. Refresh in a few seconds."}
-
-@app.get("/api/diagnostic/network-check")
-async def diagnostic_network_check():
-    """Diagnostic probe to check outgoing network connectivity, APScheduler status, and database state."""
-    import time
-    from .data_fetcher import NSE_HEADERS
-    
-    results = {}
-    
-    # 1. Test NSE Archives
-    s = requests.Session()
-    s.headers.update(NSE_HEADERS)
-    
-    u_nse = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20261105_F_0000.csv.zip"
-    t0 = time.time()
-    try:
-        r = s.get(u_nse, timeout=8)
-        results["nse_cm_bhavcopy"] = {"status": r.status_code, "len": len(r.content), "time": round(time.time()-t0, 2)}
-    except Exception as e:
-        results["nse_cm_bhavcopy"] = {"error": type(e).__name__, "msg": str(e), "time": round(time.time()-t0, 2)}
-        
-    u_sec = "https://archives.nseindia.com/products/content/sec_bhavdata_full_05112026.csv"
-    t0 = time.time()
-    try:
-        r = s.get(u_sec, timeout=8)
-        results["nse_sec_bhavcopy"] = {"status": r.status_code, "len": len(r.content), "time": round(time.time()-t0, 2)}
-    except Exception as e:
-        results["nse_sec_bhavcopy"] = {"error": type(e).__name__, "msg": str(e), "time": round(time.time()-t0, 2)}
-        
-    # 2. Test Yahoo Finance API
-    t0 = time.time()
-    try:
-        r = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=1d&interval=1d", headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        results["yahoo_finance"] = {"status": r.status_code, "len": len(r.content), "time": round(time.time()-t0, 2)}
-    except Exception as e:
-        results["yahoo_finance"] = {"error": type(e).__name__, "msg": str(e), "time": round(time.time()-t0, 2)}
-        
-    # 3. Check Scheduler state
-    from .scheduler import scheduler
-    results["scheduler_running"] = scheduler.running
-    results["scheduler_jobs"] = [
-        {"id": j.id, "name": j.name, "next_run_time": str(j.next_run_time)}
-        for j in scheduler.get_jobs()
-    ]
-    
-    # 4. Check DB newest date
-    conn = get_connection()
-    row = conn.execute("SELECT MAX(date) as max_date, COUNT(*) as cnt FROM price_history").fetchone()
-    conn.close()
-    results["db"] = {"max_date": row["max_date"] if row else None, "total_candles": row["cnt"] if row else 0}
-    
-    return results
 
 @app.get("/api/admin/init-seed")
 @app.post("/api/admin/init-seed")
