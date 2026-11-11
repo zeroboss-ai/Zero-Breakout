@@ -795,26 +795,33 @@ Sitemap: https://www.zerobreakout.in/sitemap.xml
         return HTMLResponse(content=html_content, status_code=200)
 
     @app.get("/")
+    @app.head("/")
     @app.get("/scanner")
+    @app.head("/scanner")
     async def serve_index():
         html_content = generate_homepage_html()
         return HTMLResponse(content=html_content, status_code=200)
 
     @app.get("/watchlist")
+    @app.head("/watchlist")
     @app.get("/account")
+    @app.head("/account")
     async def serve_app_tabs():
         html_content = generate_homepage_html()
         return HTMLResponse(content=html_content, status_code=200)
 
     @app.get("/about")
+    @app.head("/about")
     async def serve_about():
         return FileResponse(os.path.join(FRONTEND_DIR, "about.html"))
 
     @app.get("/privacy")
+    @app.head("/privacy")
     async def serve_privacy():
         return FileResponse(os.path.join(FRONTEND_DIR, "privacy.html"))
 
     @app.get("/terms")
+    @app.head("/terms")
     async def serve_terms():
         return FileResponse(os.path.join(FRONTEND_DIR, "terms.html"))
 
