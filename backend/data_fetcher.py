@@ -325,7 +325,7 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
     try:
         from .patterns.engine import pattern_engine
 
-        ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+        ist_now = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).replace(tzinfo=None)
         logger.info(f"Checking for missing Bhavcopies. Current IST Time: {ist_now.strftime('%Y-%m-%d %H:%M:%S (%A)')}")
 
         # Determine latest target date
