@@ -63,8 +63,16 @@ def format_and_broadcast_eod_alerts() -> Dict[str, Any]:
         logger.warning(f"Notice during pre-broadcast sync: {sync_err}")
 
     conn = get_connection()
-    row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
-    latest_market_date = row["max_date"] if row and row["max_date"] else None
+    row = conn.execute("""
+        SELECT date FROM price_history 
+        GROUP BY date 
+        HAVING COUNT(DISTINCT symbol) >= 300 
+        ORDER BY date DESC 
+        LIMIT 1
+    """).fetchone()
+    if not row:
+        row = conn.execute("SELECT MAX(date) as date FROM price_history").fetchone()
+    latest_market_date = row["date"] if row and row["date"] else None
     conn.close()
 
     if not latest_market_date:

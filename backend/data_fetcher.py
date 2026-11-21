@@ -336,8 +336,18 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
             target_end = ist_now
 
         conn = get_connection()
-        row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
-        last_db_date_str = row["max_date"] if row and row["max_date"] else None
+        row = conn.execute("""
+            SELECT date, COUNT(DISTINCT symbol) as cnt 
+            FROM price_history 
+            GROUP BY date 
+            HAVING cnt >= 300 
+            ORDER BY date DESC 
+            LIMIT 1
+        """).fetchone()
+        last_db_date_str = row["date"] if row and row["date"] else None
+        if not last_db_date_str:
+            row_fallback = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
+            last_db_date_str = row_fallback["max_date"] if row_fallback and row_fallback["max_date"] else None
         conn.close()
         
         if not last_db_date_str:
@@ -345,10 +355,12 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
         else:
             last_db_date = datetime.strptime(last_db_date_str, "%Y-%m-%d")
 
-        logger.info(f"Latest database market date: {last_db_date.strftime('%Y-%m-%d')}. Target date: {target_end.strftime('%Y-%m-%d')}")
+        logger.info(f"Latest complete market date in database: {last_db_date.strftime('%Y-%m-%d')}. Target date: {target_end.strftime('%Y-%m-%d')}")
 
-        # Generate candidate trading days (Mon-Fri)
-        curr = last_db_date + timedelta(days=1)
+        # Always check candidate trading days (Mon-Fri) from last_db_date + 1 up to target_end
+        # Also include at least the last 10 calendar days to guarantee no gaps from partial single-stock inserts
+        start_date = min(last_db_date + timedelta(days=1), target_end - timedelta(days=10))
+        curr = start_date
         dates_to_check = []
         while curr.date() <= target_end.date():
             if curr.weekday() < 5:  # Mon=0, Fri=4
@@ -371,11 +383,11 @@ def sync_missing_bhavcopies() -> Dict[str, Any]:
             existing_cnt = chk_row["cnt"] if chk_row else 0
             chk_conn.close()
 
-            if existing_cnt >= 500:
+            if existing_cnt >= 300:
                 logger.info(f"[{d_str}] Already loaded ({existing_cnt} stocks). Skipping.")
                 continue
 
-            logger.info(f"[{d_str}] Missing from DB. Downloading Bhavcopy from NSE...")
+            logger.info(f"[{d_str}] Incomplete or missing from DB ({existing_cnt} stocks). Downloading Bhavcopy from NSE...")
             df = fetch_nse_bhavcopy_for_date(d)
             if df is not None and not df.empty:
                 saved = process_and_save_bhavcopy(df, d_str)

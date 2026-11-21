@@ -265,7 +265,12 @@ def get_latest_signals(pattern_type: Optional[str] = None, search_query: Optiona
     ])
 
     if is_fresh_filter:
-        query += """ AND s.trigger_date = (SELECT MAX(date) FROM price_history)
+        query += """ AND s.trigger_date = (
+                         COALESCE(
+                             (SELECT date FROM price_history GROUP BY date HAVING COUNT(DISTINCT symbol) >= 300 ORDER BY date DESC LIMIT 1),
+                             (SELECT MAX(date) FROM price_history)
+                         )
+                     )
                      AND (
                          s.metadata_json LIKE '%"is_fresh": true%' 
                          OR s.metadata_json LIKE '%"is_fresh":true%'

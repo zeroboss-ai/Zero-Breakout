@@ -205,8 +205,16 @@ def send_eod_push_notification() -> Dict[str, Any]:
     Generates and broadcasts the evening EOD Breakout notification to all App users.
     """
     conn = get_connection()
-    row = conn.execute("SELECT MAX(date) as max_date FROM price_history").fetchone()
-    latest_market_date = row["max_date"] if row and row["max_date"] else None
+    row = conn.execute("""
+        SELECT date FROM price_history 
+        GROUP BY date 
+        HAVING COUNT(DISTINCT symbol) >= 300 
+        ORDER BY date DESC 
+        LIMIT 1
+    """).fetchone()
+    if not row:
+        row = conn.execute("SELECT MAX(date) as date FROM price_history").fetchone()
+    latest_market_date = row["date"] if row and row["date"] else None
     conn.close()
 
     ath_signals = get_latest_signals(pattern_type="All-Time High Breakout", limit=8)
