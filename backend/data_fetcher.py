@@ -151,6 +151,8 @@ def process_and_save_bhavcopy(df: pd.DataFrame, target_date_str: str) -> int:
         "CLSPRIC": "close",
         "CLOSE_PRICE": "close",
         "CLOSE": "close",
+        "VOLUME": "volume",
+        "VOL": "volume",
         "TTLTRADGVOL": "volume",
         "TOTTRDQTY": "volume",
         "TOTAL_TRADED_QTY": "volume",
